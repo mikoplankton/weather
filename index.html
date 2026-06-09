@@ -5,209 +5,150 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>Weather Cinematic</title>
+<title>Weather Globe Ultimate</title>
 
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#000">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <style>
-
-body{
+body {
     margin:0;
-    font-family:sans-serif;
     overflow:hidden;
-    transition:1s;
-}
-
-/* THEMES */
-.sunny { background:linear-gradient(#4facfe,#00f2fe); }
-.rainy { background:linear-gradient(#2c3e50,#4ca1af); }
-.cloudy { background:linear-gradient(#bdc3c7,#2c3e50); }
-
-/* CANVAS */
-canvas{
-    position:fixed;
-    top:0; left:0;
-}
-
-/* UI CINEMATIC */
-.ui{
-    position:absolute;
-    top:50%;
-    left:50%;
-    transform:translate(-50%,-50%);
-    text-align:center;
-
     color:white;
-    z-index:10;
-
-    backdrop-filter:blur(10px);
-    background:rgba(0,0,0,0.3);
-    padding:25px;
-    border-radius:20px;
-
-    box-shadow:0 20px 60px rgba(0,0,0,0.5);
+    font-family:sans-serif;
 }
 
-.clock{
-    font-size:80px;
-}
-.temp{
-    font-size:40px;
+#ui {
+    position:absolute;
+    top:20px;
+    left:50%;
+    transform:translateX(-50%);
+    text-align:center;
+    background:rgba(0,0,0,0.4);
+    padding:15px;
+    border-radius:15px;
 }
 
-/* CARD */
-.card{
-    margin-top:10px;
+input {
+    padding:8px;
+    border:none;
+    border-radius:10px;
 }
-
+button {
+    padding:8px;
+    border:none;
+    border-radius:10px;
+}
 </style>
 
 </head>
 
-<body class="sunny">
+<body>
 
-<canvas id="rain"></canvas>
+<div id="ui">
+    <input id="search" placeholder="Cari kota...">
+    <button onclick="searchCity()">Search</button>
 
-<div class="ui">
-<div class="clock" id="clock"></div>
-<div class="temp" id="temp"></div>
-
-<div class="card">💧 <span id="hum"></span></div>
-<div class="card">🌬️ <span id="wind"></span></div>
-<div class="card">☀️ <span id="uv"></span></div>
+    <h2 id="clock"></h2>
+    <h3 id="temp"></h3>
+    <p id="city"></p>
 </div>
 
 <script>
 
-// ===== CLOCK =====
-setInterval(()=>{
-let now = new Date();
-document.getElementById("clock").innerText =
-now.getHours()+":"+String(now.getMinutes()).padStart(2,'0');
-},1000);
+// ===== THREE GLOBE =====
+const scene = new THREE.Scene();
 
-// ===== CANVAS BALANCE =====
-const canvas=document.getElementById("rain");
-const ctx=canvas.getContext("2d");
+const camera = new THREE.PerspectiveCamera(
+75, innerWidth/innerHeight, 0.1, 1000
+);
 
-canvas.width=innerWidth;
-canvas.height=innerHeight;
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
 
-let rain=[];
-let isRaining=false;
+camera.position.z = 3;
 
-// create rain
-for(let i=0;i<150;i++){
-    rain.push({
-        x:Math.random()*canvas.width,
-        y:Math.random()*canvas.height,
-        l:Math.random()*10
-    });
+// LIGHT
+const light = new THREE.PointLight(0xffffff,1.5);
+light.position.set(5,5,5);
+scene.add(light);
+
+// EARTH
+const texture = new THREE.TextureLoader().load(
+"https://threejs.org/examples/textures/earth_atmos_2048.jpg"
+);
+
+const earth = new THREE.Mesh(
+    new THREE.SphereGeometry(1,64,64),
+    new THREE.MeshStandardMaterial({map:texture})
+);
+
+scene.add(earth);
+
+// ANIMATE
+function animate(){
+    requestAnimationFrame(animate);
+    earth.rotation.y += 0.002;
+    renderer.render(scene,camera);
 }
+animate();
 
-// ===== BATTERY SAVER =====
-let fps = 60;
-let lastFrame = 0;
+// ===== CLOCK (TIMEZONE) =====
+let currentTZ = "Asia/Jakarta";
 
-function drawRain(time){
-    if(!isRaining) return;
+function runClock(){
+    setInterval(()=>{
+        let now = new Date().toLocaleString("en-US",{timeZone:currentTZ});
+        let d = new Date(now);
 
-    if(time - lastFrame < (1000/fps)) {
-        requestAnimationFrame(drawRain);
+        document.getElementById("clock").innerText =
+        d.getHours()+":"+String(d.getMinutes()).padStart(2,"0");
+
+    },1000);
+}
+runClock();
+
+// ===== WEATHER + SEARCH =====
+async function searchCity(){
+
+    let name = document.getElementById("search").value;
+
+    let geo = await fetch(
+    `https://geocoding-api.open-meteo.com/v1/search?name=${name}`
+    ).then(r=>r.json());
+
+    if(!geo.results){
+        alert("Kota tidak ditemukan");
         return;
     }
-    lastFrame = time;
 
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.strokeStyle="rgba(255,255,255,0.5)";
+    let c = geo.results[0];
 
-    rain.forEach(p=>{
-        ctx.beginPath();
-        ctx.moveTo(p.x,p.y);
-        ctx.lineTo(p.x,p.y+p.l);
-        ctx.stroke();
+    currentTZ = c.timezone;
 
-        p.y+=8;
-        if(p.y>canvas.height) p.y=0;
-    });
+    document.getElementById("city").innerText =
+    c.name + " (" + c.country_code + ")";
 
-    requestAnimationFrame(drawRain);
-}
+    // WEATHER API
+    let w = await fetch(
+    `https://api.open-meteo.com/v1/forecast?latitude=${c.latitude}&longitude=${c.longitude}&current=temperature_2m`
+    ).then(r=>r.json());
 
-// ===== SOUND =====
-let rainSound=new Audio("https://www.soundjay.com/nature/rain-01.mp3");
-rainSound.loop=true;
+    let t = w.current.temperature_2m;
 
-let windSound=new Audio("https://www.soundjay.com/nature/wind-01.mp3");
-windSound.loop=true;
+    document.getElementById("temp").innerText = t+"°C";
 
-// unlock audio mobile
-document.addEventListener("click", ()=>{
-    rainSound.play().catch(()=>{});
-    windSound.play().catch(()=>{});
-});
-
-// ===== LIGHTNING =====
-function lightning(){
-    document.body.style.filter="brightness(2)";
-    setTimeout(()=>{
-        document.body.style.filter="brightness(1)";
-    },150);
-}
-
-// random lightning
-setInterval(()=>{
-    if(isRaining && Math.random()>0.7){
-        lightning();
-    }
-},3000);
-
-// ===== WEATHER =====
-async function getWeather(lat,lon){
-
-let data = await fetch(
-`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,uv_index`
-).then(r=>r.json());
-
-let c = data.current;
-
-document.getElementById("temp").innerText =
-Math.round(c.temperature_2m)+"°C";
-
-document.getElementById("hum").innerText = c.relative_humidity_2m+"%";
-document.getElementById("wind").innerText = c.wind_speed_10m;
-document.getElementById("uv").innerText = c.uv_index;
-
-// ===== MODE CONTROL =====
-if(c.temperature_2m > 30){
-    document.body.className="sunny";
-    isRaining=false;
-    fps = 30;
-    rainSound.pause();
-    windSound.pause();
-}
-else if(c.temperature_2m < 25){
-    document.body.className="rainy";
-    isRaining=true;
-    fps = 60;
-    drawRain();
-    rainSound.play();
-    windSound.play();
-}
-else{
-    document.body.className="cloudy";
-    isRaining=false;
-    fps = 30;
-    rainSound.pause();
-    windSound.play();
-}
+    // ROTATE GLOBE
+    let targetLon = (c.longitude / 180) * Math.PI;
+    earth.rotation.y = targetLon;
 
 }
 
-// GPS
+// GPS AUTO
 navigator.geolocation.getCurrentPosition(pos=>{
-    getWeather(pos.coords.latitude,pos.coords.longitude);
+    searchCity("Jakarta");
 });
 
 // SW
