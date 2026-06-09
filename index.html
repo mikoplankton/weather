@@ -5,11 +5,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>Weather Globe Stable</title>
+<title>Weather NASA Globe</title>
 
 <link rel="manifest" href="manifest.json">
 
-<!-- FIX THREE JS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <style>
@@ -26,10 +25,14 @@ body {
     top:20px;
     left:50%;
     transform:translateX(-50%);
-    background:rgba(0,0,0,0.5);
+    text-align:center;
+    background:rgba(0,0,0,0.4);
     padding:15px;
     border-radius:15px;
-    text-align:center;
+    backdrop-filter:blur(10px);
+
+    border:1px solid rgba(255,255,255,0.2);
+    box-shadow:0 20px 60px rgba(0,0,0,0.5);
 }
 
 input {
@@ -60,125 +63,174 @@ button {
 
 <script>
 
-// ===== THREE GLOBE =====
+// ===== SCENE =====
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(
-75, window.innerWidth/window.innerHeight, 0.1, 1000
+75, innerWidth/innerHeight, 0.1, 1000
 );
 
 const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 
 camera.position.z = 3;
 
-// LIGHT
+// ===== LIGHT =====
 const light = new THREE.PointLight(0xffffff,1.5);
 light.position.set(5,5,5);
 scene.add(light);
 
-// EARTH TEXTURE
+// ===== TEXTURES =====
 const loader = new THREE.TextureLoader();
+
 const earthTexture = loader.load(
 "https://threejs.org/examples/textures/earth_atmos_2048.jpg"
 );
 
-// EARTH
+const nightTexture = loader.load(
+"https://threejs.org/examples/textures/earth_lights_2048.png"
+);
+
+const cloudTexture = loader.load(
+"https://threejs.org/examples/textures/earth_clouds_1024.png"
+);
+
+// ===== EARTH =====
+const earthMaterial = new THREE.MeshStandardMaterial({
+    map: earthTexture,
+    emissive: new THREE.Color(0xffffff),
+    emissiveMap: nightTexture,
+    emissiveIntensity: 0.6
+});
+
 const earth = new THREE.Mesh(
     new THREE.SphereGeometry(1,64,64),
-    new THREE.MeshStandardMaterial({map:earthTexture})
+    earthMaterial
 );
 
 scene.add(earth);
 
-// ANIMATION LOOP
+// ===== CLOUD =====
+const clouds = new THREE.Mesh(
+    new THREE.SphereGeometry(1.01,64,64),
+    new THREE.MeshStandardMaterial({
+        map: cloudTexture,
+        transparent:true,
+        opacity:0.5
+    })
+);
+scene.add(clouds);
+
+// ===== MARKER =====
+const marker = new THREE.Mesh(
+    new THREE.SphereGeometry(0.03,16,16),
+    new THREE.MeshBasicMaterial({color:0xff0000})
+);
+scene.add(marker);
+
+// ===== DRAG ROTATE =====
+let isDragging=false;
+let prevX=0;
+
+window.addEventListener("mousedown", e=>{
+    isDragging=true;
+    prevX=e.clientX;
+});
+
+window.addEventListener("mouseup", ()=> isDragging=false);
+
+window.addEventListener("mousemove", e=>{
+    if(isDragging){
+        let dx=e.clientX-prevX;
+        earth.rotation.y += dx * 0.005;
+        clouds.rotation.y += dx * 0.005;
+        prevX=e.clientX;
+    }
+});
+
+// ===== TOUCH MOBILE =====
+window.addEventListener("touchstart", e=>{
+    isDragging=true;
+    prevX=e.touches[0].clientX;
+});
+
+window.addEventListener("touchend", ()=> isDragging=false);
+
+window.addEventListener("touchmove", e=>{
+    if(isDragging){
+        let dx=e.touches[0].clientX-prevX;
+        earth.rotation.y += dx * 0.005;
+        clouds.rotation.y += dx * 0.005;
+        prevX=e.touches[0].clientX;
+    }
+});
+
+// ===== ZOOM =====
+window.addEventListener("wheel", e=>{
+    camera.position.z += e.deltaY * 0.001;
+    camera.position.z = Math.max(1.5, Math.min(5, camera.position.z));
+});
+
+// ===== ANIMATE =====
 function animate(){
     requestAnimationFrame(animate);
-    earth.rotation.y += 0.002;
+
+    earth.rotation.y += 0.001;
+    clouds.rotation.y += 0.0012;
+
     renderer.render(scene,camera);
 }
 animate();
 
-// ===== GLOBAL STATE =====
+// ===== CLOCK =====
 let currentTZ = "Asia/Jakarta";
 
-// ===== CLOCK =====
-function startClock(){
-    setInterval(()=>{
-        try{
-            let local = new Date().toLocaleString("en-US",{ timeZone: currentTZ });
-            let d = new Date(local);
+setInterval(()=>{
+    let local = new Date().toLocaleString("en-US",{timeZone:currentTZ});
+    let d = new Date(local);
 
-            document.getElementById("clock").innerText =
-                d.getHours() + ":" + String(d.getMinutes()).padStart(2,"0");
-        }catch{
-            document.getElementById("clock").innerText = "--:--";
-        }
-    },1000);
-}
+    document.getElementById("clock").innerText =
+    d.getHours()+":"+String(d.getMinutes()).padStart(2,"0");
 
-startClock();
+},1000);
 
-// ===== SEARCH CITY =====
+// ===== SEARCH =====
 async function searchCity(){
 
-    let name = document.getElementById("search").value.trim();
-    if(!name) return;
+    let name=document.getElementById("search").value;
 
-    try{
-        // GEO
-        let geo = await fetch(
-            `https://geocoding-api.open-meteo.com/v1/search?name=${name}&count=1`
-        ).then(r=>r.json());
+    let geo=await fetch(
+    `https://geocoding-api.open-meteo.com/v1/search?name=${name}`
+    ).then(r=>r.json());
 
-        if(!geo.results){
-            alert("Kota tidak ditemukan");
-            return;
-        }
+    let c=geo.results[0];
 
-        let c = geo.results[0];
+    document.getElementById("city").innerText =
+    c.name + ", " + c.country_code;
 
-        // UPDATE UI
-        document.getElementById("city").innerText =
-            c.name + ", " + c.country_code;
+    currentTZ = c.timezone;
 
-        currentTZ = c.timezone;
-
-        // WEATHER
-        let w = await fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${c.latitude}&longitude=${c.longitude}&current=temperature_2m`
-        ).then(r=>r.json());
-
-        document.getElementById("temp").innerText =
-            Math.round(w.current.temperature_2m) + "°C";
-
-        // ROTATE GLOBE
-        let lon = c.longitude;
-        earth.rotation.y = (lon / 180) * Math.PI;
-
-    }catch(error){
-        console.log(error);
-        alert("Error ambil data");
-    }
-}
-
-// ===== AUTO GPS FETCH =====
-navigator.geolocation.getCurrentPosition(pos=>{
-    getWeatherFromCoords(pos.coords.latitude, pos.coords.longitude);
-});
-
-// ===== GPS WEATHER =====
-async function getWeatherFromCoords(lat, lon){
-
+    // WEATHER
     let w = await fetch(
-        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m`
+    `https://api.open-meteo.com/v1/forecast?latitude=${c.latitude}&longitude=${c.longitude}&current=temperature_2m`
     ).then(r=>r.json());
 
     document.getElementById("temp").innerText =
-        Math.round(w.current.temperature_2m)+"°C";
+    Math.round(w.current.temperature_2m)+"°C";
 
-    document.getElementById("city").innerText = "Lokasi Saya";
+    // ===== MARKER =====
+    let lat = c.latitude * (Math.PI/180);
+    let lon = c.longitude * (Math.PI/180);
+
+    marker.position.set(
+        Math.cos(lat)*Math.sin(lon),
+        Math.sin(lat),
+        Math.cos(lat)*Math.cos(lon)
+    );
+
+    // focus rotation
+    earth.rotation.y = lon;
 }
 
 // ===== SW =====
@@ -190,4 +242,3 @@ if("serviceWorker" in navigator){
 
 </body>
 </html>
-``
