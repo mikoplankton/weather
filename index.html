@@ -5,29 +5,31 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>Weather Globe Ultimate</title>
+<title>Weather Globe Stable</title>
 
 <link rel="manifest" href="manifest.json">
 
+<!-- FIX THREE JS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <style>
 body {
     margin:0;
     overflow:hidden;
-    color:white;
     font-family:sans-serif;
+    color:white;
 }
 
+/* UI */
 #ui {
     position:absolute;
     top:20px;
     left:50%;
     transform:translateX(-50%);
-    text-align:center;
-    background:rgba(0,0,0,0.4);
+    background:rgba(0,0,0,0.5);
     padding:15px;
     border-radius:15px;
+    text-align:center;
 }
 
 input {
@@ -39,6 +41,7 @@ button {
     padding:8px;
     border:none;
     border-radius:10px;
+    cursor:pointer;
 }
 </style>
 
@@ -61,11 +64,11 @@ button {
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(
-75, innerWidth/innerHeight, 0.1, 1000
+75, window.innerWidth/window.innerHeight, 0.1, 1000
 );
 
 const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setSize(innerWidth, innerHeight);
+renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
 camera.position.z = 3;
@@ -75,19 +78,21 @@ const light = new THREE.PointLight(0xffffff,1.5);
 light.position.set(5,5,5);
 scene.add(light);
 
-// EARTH
-const texture = new THREE.TextureLoader().load(
+// EARTH TEXTURE
+const loader = new THREE.TextureLoader();
+const earthTexture = loader.load(
 "https://threejs.org/examples/textures/earth_atmos_2048.jpg"
 );
 
+// EARTH
 const earth = new THREE.Mesh(
     new THREE.SphereGeometry(1,64,64),
-    new THREE.MeshStandardMaterial({map:texture})
+    new THREE.MeshStandardMaterial({map:earthTexture})
 );
 
 scene.add(earth);
 
-// ANIMATE
+// ANIMATION LOOP
 function animate(){
     requestAnimationFrame(animate);
     earth.rotation.y += 0.002;
@@ -95,63 +100,88 @@ function animate(){
 }
 animate();
 
-// ===== CLOCK (TIMEZONE) =====
+// ===== GLOBAL STATE =====
 let currentTZ = "Asia/Jakarta";
 
-function runClock(){
+// ===== CLOCK =====
+function startClock(){
     setInterval(()=>{
-        let now = new Date().toLocaleString("en-US",{timeZone:currentTZ});
-        let d = new Date(now);
+        try{
+            let local = new Date().toLocaleString("en-US",{ timeZone: currentTZ });
+            let d = new Date(local);
 
-        document.getElementById("clock").innerText =
-        d.getHours()+":"+String(d.getMinutes()).padStart(2,"0");
-
+            document.getElementById("clock").innerText =
+                d.getHours() + ":" + String(d.getMinutes()).padStart(2,"0");
+        }catch{
+            document.getElementById("clock").innerText = "--:--";
+        }
     },1000);
 }
-runClock();
 
-// ===== WEATHER + SEARCH =====
+startClock();
+
+// ===== SEARCH CITY =====
 async function searchCity(){
 
-    let name = document.getElementById("search").value;
+    let name = document.getElementById("search").value.trim();
+    if(!name) return;
 
-    let geo = await fetch(
-    `https://geocoding-api.open-meteo.com/v1/search?name=${name}`
-    ).then(r=>r.json());
+    try{
+        // GEO
+        let geo = await fetch(
+            `https://geocoding-api.open-meteo.com/v1/search?name=${name}&count=1`
+        ).then(r=>r.json());
 
-    if(!geo.results){
-        alert("Kota tidak ditemukan");
-        return;
+        if(!geo.results){
+            alert("Kota tidak ditemukan");
+            return;
+        }
+
+        let c = geo.results[0];
+
+        // UPDATE UI
+        document.getElementById("city").innerText =
+            c.name + ", " + c.country_code;
+
+        currentTZ = c.timezone;
+
+        // WEATHER
+        let w = await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${c.latitude}&longitude=${c.longitude}&current=temperature_2m`
+        ).then(r=>r.json());
+
+        document.getElementById("temp").innerText =
+            Math.round(w.current.temperature_2m) + "°C";
+
+        // ROTATE GLOBE
+        let lon = c.longitude;
+        earth.rotation.y = (lon / 180) * Math.PI;
+
+    }catch(error){
+        console.log(error);
+        alert("Error ambil data");
     }
-
-    let c = geo.results[0];
-
-    currentTZ = c.timezone;
-
-    document.getElementById("city").innerText =
-    c.name + " (" + c.country_code + ")";
-
-    // WEATHER API
-    let w = await fetch(
-    `https://api.open-meteo.com/v1/forecast?latitude=${c.latitude}&longitude=${c.longitude}&current=temperature_2m`
-    ).then(r=>r.json());
-
-    let t = w.current.temperature_2m;
-
-    document.getElementById("temp").innerText = t+"°C";
-
-    // ROTATE GLOBE
-    let targetLon = (c.longitude / 180) * Math.PI;
-    earth.rotation.y = targetLon;
-
 }
 
-// GPS AUTO
+// ===== AUTO GPS FETCH =====
 navigator.geolocation.getCurrentPosition(pos=>{
-    searchCity("Jakarta");
+    getWeatherFromCoords(pos.coords.latitude, pos.coords.longitude);
 });
 
-// SW
+// ===== GPS WEATHER =====
+async function getWeatherFromCoords(lat, lon){
+
+    let w = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m`
+    ).then(r=>r.json());
+
+    document.getElementById("temp").innerText =
+        Math.round(w.current.temperature_2m)+"°C";
+
+    document.getElementById("city").innerText = "Lokasi Saya";
+}
+
+// ===== SW =====
 if("serviceWorker" in navigator){
     navigator.serviceWorker.register("service-worker.js");
 }
@@ -160,3 +190,4 @@ if("serviceWorker" in navigator){
 
 </body>
 </html>
+``
