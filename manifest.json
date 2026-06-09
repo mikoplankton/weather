@@ -1,6 +1,6 @@
 {
-  "name": "Weather Final Boss",
-  "short_name": "Weather3D",
+  "name": "SkyGlobe Weather",
+  "short_name": "SkyGlobe",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#000000",
