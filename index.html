@@ -4,28 +4,41 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>SkyGlobe Weather</title>
+<title>SkyGlobe Pro</title>
 
+<!-- FIX LINK -->
 <link rel="manifest" href="manifest.json">
-
-<!-- ✅ THREE JS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <style>
 body{
     margin:0;
     font-family:'Segoe UI';
-    background:linear-gradient(#a9d6ff,#ffffff);
-    color:#222;
+    background:linear-gradient(#6ea6d8,#9fc2e6);
+    color:white;
     overflow:hidden;
+}
+
+/* TOGGLE */
+#toggle{
+    position:absolute;
+    top:10px;
+    right:10px;
+    background:white;
+    color:black;
+    padding:10px;
+    border-radius:50%;
+    cursor:pointer;
+    z-index:100;
 }
 
 /* SEARCH */
 .top{
     position:absolute;
-    top:10px;
+    top:15px;
     width:100%;
     text-align:center;
+    z-index:20;
 }
 
 input{
@@ -35,47 +48,53 @@ input{
     width:200px;
 }
 
-/* TOGGLE */
-#toggle{
-    position:absolute;
-    top:10px;
-    right:10px;
-    background:white;
-    padding:10px;
-    border-radius:50%;
-    cursor:pointer;
-}
-
 /* CLOCK */
 .clock{
     position:absolute;
     top:70px;
     width:100%;
     text-align:center;
-    font-size:50px;
+    font-size:45px;
 }
 
-/* BOTTOM */
-.bottom{
+/* PANEL */
+.panel{
     position:absolute;
-    bottom:20px;
+    bottom:0;
     width:100%;
+    padding:20px;
+}
+
+/* GLASS CARD */
+.card{
+    background:rgba(255,255,255,0.2);
+    backdrop-filter:blur(15px);
+    border-radius:20px;
+    padding:15px;
+    margin-bottom:10px;
+}
+
+/* HOURLY */
+.hourly{
+    display:flex;
+    overflow-x:auto;
+    gap:15px;
+}
+
+.hour{
     text-align:center;
 }
 
-/* CARD */
-.card{
-    background:white;
-    margin:5px;
-    padding:10px;
-    border-radius:15px;
-    display:inline-block;
-    box-shadow:0 5px 15px rgba(0,0,0,0.2);
+/* DAILY */
+.daily{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
 }
 
-.temp{
-    font-size:40px;
-    font-weight:bold;
+.row{
+    display:flex;
+    justify-content:space-between;
 }
 
 canvas{
@@ -88,45 +107,41 @@ canvas{
 
 <body>
 
-<!-- LIGHT DARK -->
 <div id="toggle">🌙</div>
 
-<!-- SEARCH -->
 <div class="top">
 <input id="search" placeholder="Cari kota..." onkeydown="if(event.key==='Enter')searchCity()">
 </div>
 
-<!-- CLOCK -->
 <div class="clock" id="clock"></div>
 
-<!-- INFO -->
-<div class="bottom">
-<div class="temp" id="temp">--°C</div>
-<div id="city"></div>
+<div class="panel">
 
-<div>
-    <div class="card">💧 <span id="hum"></span>%</div>
-    <div class="card">🌬️ <span id="wind"></span> km/h</div>
+<div class="card">
+<h3>Next 24 Hours</h3>
+<div id="hourly" class="hourly"></div>
 </div>
 
-<div id="forecast"></div>
+<div class="card">
+<h3>Next 7 Days</h3>
+<div id="daily" class="daily"></div>
+</div>
+
 </div>
 
 <script>
 
-// ===== CLOCK =====
+// CLOCK
 setInterval(()=>{
 let n=new Date();
 document.getElementById("clock").innerText =
 n.getHours()+":"+String(n.getMinutes()).padStart(2,"0");
 },1000);
 
-// ===== THREE =====
+// ===== THREE NASA =====
 const scene = new THREE.Scene();
 
-const camera = new THREE.PerspectiveCamera(
-75, innerWidth/innerHeight, 0.1, 1000
-);
+const camera = new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,1000);
 camera.position.z = 3;
 
 const renderer = new THREE.WebGLRenderer({alpha:true});
@@ -134,12 +149,11 @@ renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 
 // LIGHT
-const light = new THREE.DirectionalLight(0xffffff,1.5);
-light.position.set(5,3,5);
-scene.add(light);
+const sunLight = new THREE.DirectionalLight(0xffffff,1.5);
+sunLight.position.set(5,3,5);
+scene.add(sunLight);
 
-const ambient = new THREE.AmbientLight(0xffffff,0.4);
-scene.add(ambient);
+scene.add(new THREE.AmbientLight(0xffffff,0.3));
 
 // TEXTURE
 const loader = new THREE.TextureLoader();
@@ -174,108 +188,98 @@ new THREE.SphereGeometry(1.32,128,128),
 new THREE.MeshStandardMaterial({
     map:cloud,
     transparent:true,
-    opacity:0.4
+    opacity:0.5
 })
 );
 scene.add(clouds);
 
-// ✅ SATELLITE
-const satellite = new THREE.Mesh(
-new THREE.SphereGeometry(0.05,16,16),
+// SATELLITE
+const sat = new THREE.Mesh(
+new THREE.SphereGeometry(0.05),
 new THREE.MeshBasicMaterial({color:0xffcc00})
 );
-scene.add(satellite);
+scene.add(sat);
 
-let satAngle = 0;
+let angle=0;
 
 // ANIMATE
 function animate(){
 requestAnimationFrame(animate);
 
-earth.rotation.y += 0.001;
-clouds.rotation.y += 0.0012;
+earth.rotation.y+=0.001;
+clouds.rotation.y+=0.0012;
 
-satAngle += 0.02;
+angle+=0.02;
 
-satellite.position.set(
-Math.cos(satAngle)*2,
-Math.sin(satAngle)*0.5,
-Math.sin(satAngle)*2
+sat.position.set(
+Math.cos(angle)*2,
+Math.sin(angle)*0.5,
+Math.sin(angle)*2
 );
 
 renderer.render(scene,camera);
 }
 animate();
 
-// ===== WEATHER =====
+// WEATHER
 async function searchCity(){
 
-let name = document.getElementById("search").value;
+let name=document.getElementById("search").value;
 
 let geo = await fetch(
 `https://geocoding-api.open-meteo.com/v1/search?name=${name}`
 ).then(r=>r.json());
 
-let c = geo.results.find(x=>x.country_code==="ID") || geo.results[0];
+let c = geo.results[0];
 
-document.getElementById("city").innerText =
-c.name + ", " + c.country_code;
-
-// WEATHER DATA
+// API
 let w = await fetch(
-`https://api.open-meteo.com/v1/forecast?latitude=${c.latitude}&longitude=${c.longitude}&current=temperature_2m,relative_humidity_2m,wind_speed_10m&hourly=temperature_2m`
+`https://api.open-meteo.com/v1/forecast?latitude=${c.latitude}&longitude=${c.longitude}&hourly=temperature_2m&daily=temperature_2m_max,temperature_2m_min`
 ).then(r=>r.json());
 
-let cur = w.current;
-
-document.getElementById("temp").innerText =
-Math.round(cur.temperature_2m)+"°C";
-
-document.getElementById("hum").innerText =
-cur.relative_humidity_2m;
-
-document.getElementById("wind").innerText =
-cur.wind_speed_10m;
-
-// FORECAST
-let html="";
-for(let i=0;i<5;i++){
-let t = Math.round(w.hourly.temperature_2m[i]);
-let icon = t>30?"☀️":t<25?"🌧️":"☁️";
-
-html += `<div class="card">${icon}<br>${t}°</div>`;
+// HOURLY
+let h="";
+for(let i=0;i<8;i++){
+h+=`
+<div class="hour">
+${i}h<br>${Math.round(w.hourly.temperature_2m[i])}°
+</div>`;
 }
-document.getElementById("forecast").innerHTML = html;
+document.getElementById("hourly").innerHTML=h;
+
+// DAILY
+let d="";
+for(let i=0;i<7;i++){
+d+=`
+<div class="row">
+<div>Day ${i+1}</div>
+<div>${Math.round(w.daily.temperature_2m_min[i])}° / ${Math.round(w.daily.temperature_2m_max[i])}°</div>
+</div>`;
+}
+document.getElementById("daily").innerHTML=d;
 
 }
 
-// AUTO LOAD
+// AUTO
 navigator.geolocation.getCurrentPosition(()=>{
-    searchCity("Jakarta");
+searchCity("Jakarta");
 });
 
-// ===== LIGHT DARK =====
+// DARK MODE
 let dark=false;
 document.getElementById("toggle").onclick=()=>{
 dark=!dark;
 
 if(dark){
-document.body.style.background="black";
-document.body.style.color="white";
+document.body.style.background="#111";
 document.getElementById("toggle").innerText="☀️";
 }else{
-document.body.style.background="linear-gradient(#a9d6ff,#ffffff)";
-document.body.style.color="#222";
+document.body.style.background="linear-gradient(#6ea6d8,#9fc2e6)";
 document.getElementById("toggle").innerText="🌙";
 }
 };
 
-// SW
-if("serviceWorker" in navigator){
-navigator.serviceWorker.register("service-worker.js");
-}
-
 </script>
-
 </body>
 </html>
+``
