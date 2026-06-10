@@ -11,11 +11,7 @@
   "background_color": "#06132f",
   "theme_color": "#06132f",
   "orientation": "portrait",
-  "categories": [
-    "weather",
-    "utilities",
-    "travel"
-  ],
+  "categories": ["weather", "utilities", "travel"],
   "prefer_related_applications": false,
   "icons": [
     {
