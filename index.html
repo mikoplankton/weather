@@ -4,24 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>SkyGlobe Weather Ultimate FIX</title>
+<title>SkyGlobe App REAL</title>
 
-<!-- ✅ FIX YANG BENAR -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <style>
 body{
 margin:0;
 font-family:sans-serif;
-background:linear-gradient(#6ea6d8,#9fc2e6);
+background:linear-gradient(#4facfe,#00f2fe);
 color:white;
 overflow-x:hidden;
-transition:0.5s;
 }
 
 .app{
 height:100vh;
 overflow-y:auto;
+padding-bottom:50px;
 }
 
 /* SEARCH */
@@ -37,6 +36,7 @@ input{
 padding:10px;
 border-radius:20px;
 border:none;
+width:200px;
 }
 
 /* TOGGLE */
@@ -77,6 +77,12 @@ gap:10px;
 overflow-x:auto;
 }
 
+.hour{
+min-width:70px;
+text-align:center;
+}
+
+/* DAILY */
 .row{
 display:flex;
 justify-content:space-between;
@@ -88,7 +94,7 @@ position:fixed;
 top:0;
 left:0;
 z-index:-1;
-opacity:0.25;
+opacity:0.2;
 }
 </style>
 </head>
@@ -98,14 +104,15 @@ opacity:0.25;
 <div id="toggle">🌙</div>
 
 <div class="search">
-<input id="search" placeholder="Cari kota..." onkeydown="if(event.key==='Enter')loadWeather()">
+<input id="search" placeholder="Cari kota..."
+onkeydown="if(event.key==='Enter')searchCity()">
 </div>
 
 <div class="app">
 
 <div class="header">
-<div id="city">Loading...</div>
-<div id="temp" class="temp">--°</div>
+<div id="city">Jakarta</div>
+<div class="temp" id="temp">--°</div>
 <div id="desc">--</div>
 </div>
 
@@ -113,7 +120,7 @@ opacity:0.25;
 
 <div class="card">
 <h3>Next 24 Hours</h3>
-<div id="hourly" class="hourly"></div>
+<div class="hourly" id="hourly"></div>
 </div>
 
 <div class="card">
@@ -125,114 +132,107 @@ opacity:0.25;
 
 <script>
 
-// ✅ DOM SAFE
-const cityEl = document.getElementById("city");
-const tempEl = document.getElementById("temp");
-const descEl = document.getElementById("desc");
-const infoEl = document.getElementById("info");
-const hourlyEl = document.getElementById("hourly");
-const dailyEl = document.getElementById("daily");
-const toggleBtn = document.getElementById("toggle");
-
-// ✅ DARK MODE
+// ===== DARK MODE =====
 let dark=false;
-toggleBtn.onclick=()=>{
+toggle.onclick=()=>{
 dark=!dark;
-document.body.style.background =
-dark ? "#111" : "linear-gradient(#6ea6d8,#9fc2e6)";
+document.body.style.background=
+dark?"#111":"linear-gradient(#4facfe,#00f2fe)";
 };
 
-// ✅ WEATHER SAFE
-async function loadWeather(){
-
-let name = document.getElementById("search").value || "Jakarta";
-
-try{
-
-let geoRes = await fetch(
-"https://geocoding-api.open-meteo.com/v1/search?name="+encodeURIComponent(name)
-);
-let geo = await geoRes.json();
-
-if(!geo.results){
-throw "No city";
+// ===== ICON =====
+function icon(t){
+if(t>30) return "☀️";
+if(t<25) return "🌧️";
+return "☁️";
 }
 
-let c = geo.results[0];
+// ===== SEARCH CITY =====
+async function searchCity(){
 
-let wRes = await fetch(
+let name=document.getElementById("search").value || "Jakarta";
+
+// GEO
+let geo=await fetch(
+`https://geocoding-api.open-meteo.com/v1/search?name=${name}`
+).then(r=>r.json());
+
+let c=geo.results ? geo.results[0] : null;
+
+if(!c){
+alert("Kota tidak ditemukan");
+return;
+}
+
+// WEATHER
+let w=await fetch(
 `https://api.open-meteo.com/v1/forecast?latitude=${c.latitude}&longitude=${c.longitude}&current=temperature_2m,relative_humidity_2m&hourly=temperature_2m,time&daily=temperature_2m_max,temperature_2m_min`
-);
+).then(r=>r.json());
 
-let w = await wRes.json();
+// HEADER
+city.innerText=c.name;
+temp.innerText=Math.round(w.current.temperature_2m)+"°";
+desc.innerText="Live Weather";
 
-// UI
-cityEl.innerText=c.name;
-tempEl.innerText=Math.round(w.current.temperature_2m)+"°";
-descEl.innerText="Weather OK";
+// INFO
+info.innerText="Humidity "+w.current.relative_humidity_2m+"%";
 
-infoEl.innerText="Humidity "+w.current.relative_humidity_2m+"%";
-
-// hourly
-hourlyEl.innerHTML="";
+// HOURLY (REAL)
+hourly.innerHTML="";
 for(let i=0;i<8;i++){
-let h=new Date(w.hourly.time[i]).getHours();
-hourlyEl.innerHTML+=`<div>${h}:00<br>${Math.round(w.hourly.temperature_2m[i])}°</div>`;
-}
-
-// daily
-dailyEl.innerHTML="";
-for(let i=0;i<7;i++){
-dailyEl.innerHTML+=`
-<div class="row">
-<div>Day ${i+1}</div>
-<div>${Math.round(w.daily.temperature_2m_min[i])}° / ${Math.round(w.daily.temperature_2m_max[i])}°</div>
+let t=Math.round(w.hourly.temperature_2m[i]);
+let hour=new Date(w.hourly.time[i]).getHours();
+hourly.innerHTML+=`
+<div class="hour">
+${hour}:00<br>
+${icon(t)}<br>
+${t}°
 </div>`;
 }
 
-}catch(e){
-console.log(e);
-
-// fallback
-cityEl.innerText="Jakarta";
-tempEl.innerText="30°";
-descEl.innerText="Fallback mode";
-infoEl.innerText="Data default";
-hourlyEl.innerHTML="<div>Fallback</div>";
-dailyEl.innerHTML="<div>Fallback</div>";
+// DAILY (REAL)
+daily.innerHTML="";
+for(let i=0;i<7;i++){
+daily.innerHTML+=`
+<div class="row">
+<div>Day ${i+1}</div>
+<div>
+${Math.round(w.daily.temperature_2m_min[i])}° /
+${Math.round(w.daily.temperature_2m_max[i])}°
+</div>
+</div>`;
 }
+
 }
 
-loadWeather();
+// AUTO LOAD
+searchCity();
 
-// ✅ GLOBE REAL FIX
-const scene = new THREE.Scene();
+// ===== GLOBE =====
+const scene=new THREE.Scene();
 
-const camera = new THREE.PerspectiveCamera(
-75, window.innerWidth/window.innerHeight, 0.1, 1000
-);
-camera.position.z=4;
+const cam=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,1000);
+cam.position.z=4;
 
-const renderer = new THREE.WebGLRenderer({alpha:true});
-renderer.setSize(window.innerWidth,window.innerHeight);
-document.body.appendChild(renderer.domElement);
+const rend=new THREE.WebGLRenderer({alpha:true});
+rend.setSize(innerWidth,innerHeight);
+document.body.appendChild(rend.domElement);
 
-const globe = new THREE.Mesh(
+const earth=new THREE.Mesh(
 new THREE.SphereGeometry(0.8,64,64),
 new THREE.MeshStandardMaterial({
 map:new THREE.TextureLoader().load(
-"https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg"
-)
+"https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg")
 })
 );
 
-scene.add(globe);
+scene.add(earth);
 scene.add(new THREE.AmbientLight(0xffffff,1));
 
 function animate(){
 requestAnimationFrame(animate);
-globe.rotation.y+=0.001;
-renderer.render(scene,camera);
+earth.rotation.y+=0.001;
+rend.render(scene,cam);
 }
 animate();
 
