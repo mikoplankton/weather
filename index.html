@@ -6,15 +6,17 @@
 
 <title>SkyGlobe Weather</title>
 
-manifest.json
+<link rel="manifest" href="manifest.json">
 
-https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js>
+<!-- ✅ THREE JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <style>
 body{
     margin:0;
     font-family:'Segoe UI';
-    background: linear-gradient(#a9d6ff,#ffffff);
+    background:linear-gradient(#a9d6ff,#ffffff);
+    color:#222;
     overflow:hidden;
 }
 
@@ -33,6 +35,17 @@ input{
     width:200px;
 }
 
+/* TOGGLE */
+#toggle{
+    position:absolute;
+    top:10px;
+    right:10px;
+    background:white;
+    padding:10px;
+    border-radius:50%;
+    cursor:pointer;
+}
+
 /* CLOCK */
 .clock{
     position:absolute;
@@ -42,7 +55,7 @@ input{
     font-size:50px;
 }
 
-/* INFO */
+/* BOTTOM */
 .bottom{
     position:absolute;
     bottom:20px;
@@ -75,12 +88,18 @@ canvas{
 
 <body>
 
+<!-- LIGHT DARK -->
+<div id="toggle">🌙</div>
+
+<!-- SEARCH -->
 <div class="top">
 <input id="search" placeholder="Cari kota..." onkeydown="if(event.key==='Enter')searchCity()">
 </div>
 
+<!-- CLOCK -->
 <div class="clock" id="clock"></div>
 
+<!-- INFO -->
 <div class="bottom">
 <div class="temp" id="temp">--°C</div>
 <div id="city"></div>
@@ -95,20 +114,19 @@ canvas{
 
 <script>
 
-// CLOCK
+// ===== CLOCK =====
 setInterval(()=>{
 let n=new Date();
 document.getElementById("clock").innerText =
 n.getHours()+":"+String(n.getMinutes()).padStart(2,"0");
 },1000);
 
-// ===== THREE GLOBE =====
+// ===== THREE =====
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(
 75, innerWidth/innerHeight, 0.1, 1000
 );
-
 camera.position.z = 3;
 
 const renderer = new THREE.WebGLRenderer({alpha:true});
@@ -161,12 +179,29 @@ new THREE.MeshStandardMaterial({
 );
 scene.add(clouds);
 
-// ANIMATION
+// ✅ SATELLITE
+const satellite = new THREE.Mesh(
+new THREE.SphereGeometry(0.05,16,16),
+new THREE.MeshBasicMaterial({color:0xffcc00})
+);
+scene.add(satellite);
+
+let satAngle = 0;
+
+// ANIMATE
 function animate(){
 requestAnimationFrame(animate);
 
 earth.rotation.y += 0.001;
 clouds.rotation.y += 0.0012;
+
+satAngle += 0.02;
+
+satellite.position.set(
+Math.cos(satAngle)*2,
+Math.sin(satAngle)*0.5,
+Math.sin(satAngle)*2
+);
 
 renderer.render(scene,camera);
 }
@@ -205,15 +240,35 @@ cur.wind_speed_10m;
 // FORECAST
 let html="";
 for(let i=0;i<5;i++){
-html += `<div class="card">${Math.round(w.hourly.temperature_2m[i])}°</div>`;
+let t = Math.round(w.hourly.temperature_2m[i]);
+let icon = t>30?"☀️":t<25?"🌧️":"☁️";
+
+html += `<div class="card">${icon}<br>${t}°</div>`;
 }
 document.getElementById("forecast").innerHTML = html;
+
 }
 
 // AUTO LOAD
 navigator.geolocation.getCurrentPosition(()=>{
     searchCity("Jakarta");
 });
+
+// ===== LIGHT DARK =====
+let dark=false;
+document.getElementById("toggle").onclick=()=>{
+dark=!dark;
+
+if(dark){
+document.body.style.background="black";
+document.body.style.color="white";
+document.getElementById("toggle").innerText="☀️";
+}else{
+document.body.style.background="linear-gradient(#a9d6ff,#ffffff)";
+document.body.style.color="#222";
+document.getElementById("toggle").innerText="🌙";
+}
+};
 
 // SW
 if("serviceWorker" in navigator){
