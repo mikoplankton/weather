@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>SkyGlobe Weather</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#6ea6d8">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    :root {
+      --bg-top: #6ea6d8;
+      --bg-bottom: #9fc2e6;
+      --text: #ffffff;
+      --muted: rgba(255,255,255,0.82);
+      --card: rgba(255,255,255,0.20);
+      --card-border: rgba(255,255,255,0.18);
+      --shadow: 0 10px 30px rgba(0,0,0,0.12);
+      --input-bg: rgba(255,255,255,0.95);
+      --input-text: #334155;
+      --toggle-bg: rgba(255,255,255,0.96);
+      --toggle-text: #111827;
+      --canvas-opacity: 0.24;
+    }
+
+    body.dark {
+      --bg-top: #0f172a;
+      --bg-bottom: #111827;
+      --text: #eef2ff;
+      --muted: rgba(238,242,255,0.86);
+      --card: rgba(18, 25, 46, 0.45);
+      --card-border: rgba(255,255,255,0.08);
+      --shadow: 0 16px 40px rgba(0,0,0,0.38);
+      --input-bg: rgba(17,24,39,0.92);
+      --input-text: #eef2ff;
+      --toggle-bg: rgba(17,24,39,0.92);
+      --toggle-text: #f8fafc;
+      --canvas-opacity: 0.20;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin:0; height:100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Arial, sans-serif;
+      color: var(--text);
+      background: linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+      overflow-x: hidden;
+      transition: background .35s ease, color .35s ease;
+    }
+
+    #globe-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      opacity: var(--canvas-opacity);
+      pointer-events: none;
+      transition: opacity .35s ease;
+    }
+
+    .topbar {
+      position: fixed;
+      top: max(12px, env(safe-area-inset-top));
+      left: 0; right: 0;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 0 14px;
+    }
+
+    .search-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: min(680px, calc(100% - 78px));
+    }
+
+    .search-input {
+      flex: 1;
+      height: 52px;
+      padding: 0 18px;
+      border: 0;
+      outline: none;
+      border-radius: 26px;
+      background: var(--input-bg);
+      color: var(--input-text);
+      font-size: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .search-btn, .toggle-btn {
+      width: 52px;
+      height: 52px;
+      border: 0;
+      cursor: pointer;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow);
+      transition: transform .18s ease, opacity .18s ease, background .35s ease, color .35s ease;
+    }
+    .search-btn:hover, .toggle-btn:hover { transform: translateY(-1px); }
+    .search-btn:active, .toggle-btn:active { transform: translateY(0); }
+    .search-btn { background: var(--toggle-bg); color: var(--toggle-text); }
+    .toggle-btn { background: var(--toggle-bg); color: var(--toggle-text); font-size: 22px; }
+
+    .app {
+      position: relative;
+      z-index: 10;
+      min-height: 100vh;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 88px 14px 36px;
+      scroll-behavior: smooth;
+      scroll-snap-type: y proximity;
+    }
+    .app::-webkit-scrollbar { display: none; }
+
+    .section, .metric-card {
+      scroll-snap-align: start;
+    }
+
+    .header {
+      text-align: center;
+      padding-top: 24px;
+      padding-bottom: 10px;
+    }
+    .clock {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 8px;
+      letter-spacing: 0.2px;
+    }
+    .city {
+      font-size: 28px;
+      font-weight: 600;
+      line-height: 1.1;
+      margin-bottom: 8px;
+    }
+    .temp {
+      font-size: clamp(72px, 14vw, 108px);
+      font-weight: 200;
+      line-height: 0.92;
+      letter-spacing: -2px;
+      margin-bottom: 10px;
+    }
+    .desc {
+      font-size: 22px;
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+    .range {
+      font-size: 16px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .section, .metric-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .section {
+      margin: 12px auto;
+      padding: 16px;
+      width: min(860px, 100%);
+    }
+
+    .section-title {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .summary-text {
+      line-height: 1.5;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .hourly {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding-bottom: 6px;
+    }
+    .hourly::-webkit-scrollbar { display:none; }
+    .hour-card {
+      min-width: 78px;
+      flex: 0 0 auto;
+      text-align: center;
+      border-radius: 18px;
+      padding: 12px 10px;
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .hour-time { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+    .hour-icon { font-size: 22px; margin-bottom: 8px; }
+    .hour-temp { font-size: 15px; font-weight: 700; }
+
+    .daily-list { display: flex; flex-direction: column; gap: 2px; }
+    .daily-row {
+      display: grid;
+      grid-template-columns: 1fr 72px 110px;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 2px;
+      border-bottom: 1px solid rgba(255,255,255,0.10);
+    }
+    .daily-row:last-child { border-bottom: 0; }
+    .daily-day { font-size: 16px; font-weight: 600; }
+    .daily-cond { font-size: 15px; color: var(--muted); text-align: center; }
+    .daily-range { font-size: 15px; text-align: right; font-weight: 700; }
+
+    .grid {
+      width: min(860px, 100%);
+      margin: 12px auto 0;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .metric-card {
+      padding: 16px;
+      min-height: 108px;
+    }
+    .metric-label {
+      font-size: 13px;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .metric-value {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .metric-sub { color: var(--muted); font-size: 14px; line-height: 1.35; }
+
+    .status {
+      width: min(860px, 100%);
+      margin: 10px auto 0;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+      min-height: 20px;
+    }
+
+    @media (max-width: 520px) {
+      .city { font-size: 24px; }
+      .desc { font-size: 18px; }
+      .daily-row { grid-template-columns: 1fr 64px 94px; }
+      .grid { grid-template-columns: 1fr; }
+      .metric-card { min-height: 96px; }
+      .search-input { font-size: 17px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="globe-canvas"></canvas>
+
+  <div class="topbar">
+    <div class="search-wrap">
+      <input id="searchInput" class="search-input" type="text" placeholder="Cari kota..." value="Jakarta" aria-label="Cari kota">
+      <button id="searchBtn" class="search-btn" aria-label="Cari">🔍</button>
+    </div>
+    <button id="toggleBtn" class="toggle-btn" aria-label="Light dark mode">🌙</button>
+  </div>
+
+  <main class="app" id="app">
+    <section class="header">
+      <div id="clockEl" class="clock">--:-- • ----</div>
+      <div id="cityEl" class="city">Jakarta</div>
+      <div id="tempEl" class="temp">--°</div>
+      <div id="descEl" class="desc">Memuat cuaca…</div>
+      <div id="rangeEl" class="range">H: --° • L: --°</div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">Today</div>
+      <div id="summaryEl" class="summary-text">Memuat ringkasan cuaca…</div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">Next 24 Hours</div>
+      <div id="hourlyEl" class="hourly"></div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">Next 7 Days</div>
+      <div id="dailyEl" class="daily-list"></div>
+    </section>
+
+    <section class="grid">
+      <div class="metric-card">
+        <div class="metric-label">Feels Like</div>
+        <div id="feelsEl" class="metric-value">--°</div>
+        <div class="metric-sub">Perkiraan suhu yang terasa di kulit.</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Humidity</div>
+        <div id="humidityEl" class="metric-value">--%</div>
+        <div class="metric-sub">Kelembapan udara saat ini.</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Wind</div>
+        <div id="windEl" class="metric-value">-- km/h</div>
+        <div class="metric-sub">Kecepatan angin 10 meter.</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Precipitation</div>
+        <div id="precipEl" class="metric-value">-- mm</div>
+        <div class="metric-sub">Curah hujan jam ini.</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Sunrise</div>
+        <div id="sunriseEl" class="metric-value">--:--</div>
+        <div class="metric-sub">Matahari terbit lokal.</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Sunset</div>
+        <div id="sunsetEl" class="metric-value">--:--</div>
+        <div class="metric-sub">Matahari terbenam lokal.</div>
+      </div>
+    </section>
+
+    <div id="statusEl" class="status"></div>
+  </main>
+
+  <script>
+    // --------- DOM ---------
+    const appEl = document.getElementById('app');
+    const searchInput = document.getElementById('searchInput');
+    const searchBtn = document.getElementById('searchBtn');
+    const toggleBtn = document.getElementById('toggleBtn');
+    const clockEl = document.getElementById('clockEl');
+    const cityEl = document.getElementById('cityEl');
+    const tempEl = document.getElementById('tempEl');
+    const descEl = document.getElementById('descEl');
+    const rangeEl = document.getElementById('rangeEl');
+    const summaryEl = document.getElementById('summaryEl');
+    const hourlyEl = document.getElementById('hourlyEl');
+    const dailyEl = document.getElementById('dailyEl');
+    const feelsEl = document.getElementById('feelsEl');
+    const humidityEl = document.getElementById('humidityEl');
+    const windEl = document.getElementById('windEl');
+    const precipEl = document.getElementById('precipEl');
+    const sunriseEl = document.getElementById('sunriseEl');
+    const sunsetEl = document.getElementById('sunsetEl');
+    const statusEl = document.getElementById('statusEl');
+
+    // --------- Theme ---------
+    let darkMode = false;
+    toggleBtn.addEventListener('click', () => {
+      darkMode = !darkMode;
+      document.body.classList.toggle('dark', darkMode);
+      toggleBtn.textContent = darkMode ? '☀️' : '🌙';
+    });
+
+    // --------- Weather utils ---------
+    const WEATHER_MAP = {
+      0: ['Clear', '☀️'],
+      1: ['Mainly clear', '🌤️'],
+      2: ['Partly cloudy', '⛅'],
+      3: ['Cloudy', '☁️'],
+      45: ['Fog', '🌫️'],
+      48: ['Depositing rime fog', '🌫️'],
+      51: ['Light drizzle', '🌦️'],
+      53: ['Drizzle', '🌦️'],
+      55: ['Dense drizzle', '🌧️'],
+      56: ['Freezing drizzle', '🌨️'],
+      57: ['Freezing drizzle', '🌨️'],
+      61: ['Light rain', '🌦️'],
+      63: ['Rain', '🌧️'],
+      65: ['Heavy rain', '🌧️'],
+      66: ['Freezing rain', '🌨️'],
+      67: ['Freezing rain', '🌨️'],
+      71: ['Light snow', '🌨️'],
+      73: ['Snow', '❄️'],
+      75: ['Heavy snow', '❄️'],
+      77: ['Snow grains', '❄️'],
+      80: ['Rain showers', '🌦️'],
+      81: ['Rain showers', '🌧️'],
+      82: ['Heavy showers', '⛈️'],
+      85: ['Snow showers', '🌨️'],
+      86: ['Snow showers', '🌨️'],
+      95: ['Thunderstorm', '⛈️'],
+      96: ['Thunderstorm hail', '⛈️'],
+      99: ['Thunderstorm hail', '⛈️']
+    };
+
+    function weatherLabel(code) {
+      return WEATHER_MAP[code]?.[0] || 'Unknown';
+    }
+    function weatherIcon(code) {
+      return WEATHER_MAP[code]?.[1] || '🌡️';
+    }
+    function shortTime(isoString) {
+      const d = new Date(isoString);
+      const h = String(d.getHours()).padStart(2, '0');
+      return `${h}:00`;
+    }
+    function hhmm(isoString) {
+      const d = new Date(isoString);
+      return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    }
+    function weekdayLabel(isoString, index) {
+      const d = new Date(isoString);
+      if (index === 0) return 'Today';
+      return new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(d);
+    }
+    function summaryText(curr) {
+      const p1 = `Saat ini ${weatherLabel(curr.weather_code).toLowerCase()} dengan suhu ${Math.round(curr.temperature_2m)}°C.`;
+      const p2 = `Kelembapan ${Math.round(curr.relative_humidity_2m)}% dan angin ${Math.round(curr.wind_speed_10m)} km/h.`;
+      const p3 = `Terasa seperti ${Math.round(curr.apparent_temperature)}°C.`;
+      return `${p1} ${p2} ${p3}`;
+    }
+
+    // --------- Clock ---------
+    let currentTimeZone = 'Asia/Jakarta';
+    let clockTimer = null;
+    function startClock() {
+      if (clockTimer) clearInterval(clockTimer);
+      const tick = () => {
+        try {
+          const now = new Date();
+          const time = new Intl.DateTimeFormat('en-GB', {
+            timeZone: currentTimeZone,
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+          }).format(now);
+          const day = new Intl.DateTimeFormat('en-US', {
+            timeZone: currentTimeZone,
+            weekday: 'long'
+          }).format(now);
+          clockEl.textContent = `${time} • ${day}`;
+        } catch (e) {
+          clockEl.textContent = '--:-- • ----';
+        }
+      };
+      tick();
+      clockTimer = setInterval(tick, 1000);
+    }
+
+    // --------- Globe ---------
+    const canvasEl = document.getElementById('globe-canvas');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 0.15, 4.3);
+
+    const renderer = new THREE.WebGLRenderer({ canvas: canvasEl, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x000000, 0);
+
+    const ambient = new THREE.AmbientLight(0xffffff, 1.0);
+    scene.add(ambient);
+    const directional = new THREE.DirectionalLight(0xffffff, 0.85);
+    directional.position.set(5, 3, 5);
+    scene.add(directional);
+
+    const textureLoader = new THREE.TextureLoader();
+    const globeGroup = new THREE.Group();
+    scene.add(globeGroup);
+
+    const earth = new THREE.Mesh(
+      new THREE.SphereGeometry(0.95, 96, 96),
+      new THREE.MeshStandardMaterial({
+        map: textureLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg'),
+        roughness: 1,
+        metalness: 0,
+        transparent: true,
+        opacity: 0.95
+      })
+    );
+    globeGroup.add(earth);
+
+    const clouds = new THREE.Mesh(
+      new THREE.SphereGeometry(0.975, 96, 96),
+      new THREE.MeshStandardMaterial({
+        map: textureLoader.load('https://threejs.org/examples/textures/planets/earth_clouds_1024.png'),
+        transparent: true,
+        opacity: 0.35,
+        depthWrite: false
+      })
+    );
+    globeGroup.add(clouds);
+
+    const glow = new THREE.Mesh(
+      new THREE.SphereGeometry(1.05, 64, 64),
+      new THREE.MeshBasicMaterial({ color: 0x9fd7ff, transparent: true, opacity: 0.06 })
+    );
+    globeGroup.add(glow);
+
+    let targetRotationY = 0;
+    function animate() {
+      requestAnimationFrame(animate);
+      globeGroup.rotation.y += 0.0008;
+      globeGroup.rotation.y += (targetRotationY - globeGroup.rotation.y) * 0.02;
+      clouds.rotation.y += 0.0006;
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    function handleResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    window.addEventListener('resize', handleResize);
+
+    appEl.addEventListener('scroll', () => {
+      const y = appEl.scrollTop;
+      camera.position.y = 0.15 - Math.min(y * 0.00045, 0.22);
+      canvasEl.style.opacity = darkMode ? '0.20' : '0.24';
+    });
+
+    // --------- Weather engine ---------
+    let latestWeather = null;
+    async function fetchJson(url) {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    }
+
+    async function searchCity(query) {
+      const q = (query || searchInput.value || 'Jakarta').trim();
+      statusEl.textContent = 'Memuat data cuaca…';
+      searchBtn.disabled = true;
+      searchBtn.style.opacity = '.6';
+
+      try {
+        const geo = await fetchJson(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=en&format=json`);
+        if (!geo.results || geo.results.length === 0) {
+          throw new Error('Kota tidak ditemukan');
+        }
+        const place = geo.results[0];
+
+        const weather = await fetchJson(
+          `https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}&longitude=${place.longitude}` +
+          `&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,precipitation,weather_code` +
+          `&hourly=temperature_2m,weather_code` +
+          `&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset` +
+          `&forecast_days=8&timezone=auto`
+        );
+
+        if (!weather.current || !weather.hourly || !weather.daily) {
+          throw new Error('Data cuaca tidak lengkap');
+        }
+
+        latestWeather = { place, weather };
+        currentTimeZone = weather.timezone || place.timezone || 'Asia/Jakarta';
+        renderWeather(place, weather);
+        startClock();
+        targetRotationY = -place.longitude * Math.PI / 180;
+        statusEl.textContent = `Data aktif • ${place.name}`;
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = 'Gagal mengambil data. Menampilkan Jakarta default jika tersedia.';
+        // hard fallback to Jakarta
+        if ((query || searchInput.value || '').trim().toLowerCase() !== 'jakarta') {
+          searchInput.value = 'Jakarta';
+          try {
+            await searchCity('Jakarta');
+            return;
+          } catch (_) {}
+        }
+        // static emergency fallback so UI tetap hidup
+        cityEl.textContent = 'Jakarta';
+        tempEl.textContent = '30°';
+        descEl.textContent = 'Fallback Mode';
+        rangeEl.textContent = 'H: 32° • L: 25°';
+        summaryEl.textContent = 'Tidak bisa memuat API saat ini. Coba refresh atau cari kota besar lain.';
+        feelsEl.textContent = '31°';
+        humidityEl.textContent = '75%';
+        windEl.textContent = '8 km/h';
+        precipEl.textContent = '0 mm';
+        sunriseEl.textContent = '05:50';
+        sunsetEl.textContent = '17:47';
+        hourlyEl.innerHTML = ['Now','09:00','10:00','11:00','12:00','13:00'].map((t,i)=>`<div class="hour-card"><div class="hour-time">${t}</div><div class="hour-icon">☁️</div><div class="hour-temp">${30+i%2}°</div></div>`).join('');
+        dailyEl.innerHTML = ['Today','Thursday','Friday','Saturday','Sunday','Monday','Tuesday'].map((d,i)=>`<div class="daily-row"><div class="daily-day">${d}</div><div class="daily-cond">☁️ Cloudy</div><div class="daily-range">${24+i%2}° / ${31-i%2}°</div></div>`).join('');
+      } finally {
+        searchBtn.disabled = false;
+        searchBtn.style.opacity = '1';
+      }
+    }
+
+    function renderWeather(place, weather) {
+      const curr = weather.current;
+      cityEl.textContent = `${place.name}${place.country_code ? ', ' + place.country_code : ''}`;
+      tempEl.textContent = `${Math.round(curr.temperature_2m)}°`;
+      descEl.textContent = `${weatherIcon(curr.weather_code)} ${weatherLabel(curr.weather_code)}`;
+      rangeEl.textContent = `H: ${Math.round(weather.daily.temperature_2m_max[0])}° • L: ${Math.round(weather.daily.temperature_2m_min[0])}°`;
+      summaryEl.textContent = summaryText(curr);
+
+      feelsEl.textContent = `${Math.round(curr.apparent_temperature)}°`;
+      humidityEl.textContent = `${Math.round(curr.relative_humidity_2m)}%`;
+      windEl.textContent = `${Math.round(curr.wind_speed_10m)} km/h`;
+      precipEl.textContent = `${Number(curr.precipitation || 0).toFixed(1)} mm`;
+      sunriseEl.textContent = hhmm(weather.daily.sunrise[0]);
+      sunsetEl.textContent = hhmm(weather.daily.sunset[0]);
+
+      hourlyEl.innerHTML = weather.hourly.time.slice(0, 12).map((time, i) => {
+        const timeLabel = i === 0 ? 'Now' : shortTime(time);
+        const temp = Math.round(weather.hourly.temperature_2m[i]);
+        const code = weather.hourly.weather_code[i];
+        return `<div class="hour-card"><div class="hour-time">${timeLabel}</div><div class="hour-icon">${weatherIcon(code)}</div><div class="hour-temp">${temp}°</div></div>`;
+      }).join('');
+
+      dailyEl.innerHTML = weather.daily.time.slice(0, 7).map((time, i) => {
+        const code = weather.daily.weather_code[i];
+        const min = Math.round(weather.daily.temperature_2m_min[i]);
+        const max = Math.round(weather.daily.temperature_2m_max[i]);
+        return `<div class="daily-row"><div class="daily-day">${weekdayLabel(time, i)}</div><div class="daily-cond">${weatherIcon(code)} ${weatherLabel(code)}</div><div class="daily-range">${min}° / ${max}°</div></div>`;
+      }).join('');
+    }
+
+    // Events
+    searchBtn.addEventListener('click', () => searchCity());
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') searchCity();
+    });
+
+    // Init
+    startClock();
+    searchCity('Jakarta');
+  </script>
+</body>
+</html>
