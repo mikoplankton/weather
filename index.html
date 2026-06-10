@@ -4,106 +4,130 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>SkyGlobe Weather PRO</title>
+<title>SkyGlobe Weather</title>
 
 <link rel="manifest" href="manifest.json">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <style>
 body{
-    margin:0;
-    font-family:'Segoe UI';
-    background:linear-gradient(#6ea6d8,#9fc2e6);
-    color:white;
-    overflow:hidden;
+margin:0;
+font-family:'Segoe UI';
+background:linear-gradient(#6ea6d8,#9fc2e6);
+color:white;
+overflow:hidden;
 }
 
 /* SEARCH */
-.top{
-    position:absolute;
-    top:10px;
-    width:100%;
-    text-align:center;
+.search{
+position:absolute;
+top:10px;
+width:100%;
+text-align:center;
+z-index:10;
+}
+input{
+padding:10px;
+border-radius:20px;
+border:none;
+}
+
+/* DARK TOGGLE */
+#toggle{
+position:absolute;
+top:10px;
+right:10px;
+background:white;
+color:black;
+padding:10px;
+border-radius:50%;
+cursor:pointer;
+z-index:10;
 }
 
 /* HEADER */
 .header{
-    margin-top:60px;
-    text-align:center;
+margin-top:70px;
+text-align:center;
+z-index:10;
+position:relative;
 }
-
-.big{
-    font-size:60px;
-}
-
-.desc{
-    font-size:20px;
-    opacity:0.8;
-}
+.big{ font-size:70px; }
+.small{ opacity:0.8; }
 
 /* PANEL */
 .panel{
-    position:absolute;
-    bottom:0;
-    width:100%;
-    padding:20px;
+position:absolute;
+bottom:0;
+width:100%;
+padding:15px;
 }
 
 /* CARD */
 .card{
-    background:rgba(255,255,255,0.2);
-    backdrop-filter:blur(15px);
-    border-radius:20px;
-    padding:15px;
-    margin-bottom:10px;
+background:rgba(255,255,255,0.2);
+backdrop-filter:blur(20px);
+border-radius:20px;
+padding:15px;
+margin-bottom:10px;
 }
 
 /* HOURLY */
 .hourly{
-    display:flex;
-    overflow-x:auto;
+display:flex;
+overflow-x:auto;
+gap:15px;
 }
 .hour{
-    min-width:60px;
-    text-align:center;
+min-width:70px;
+text-align:center;
 }
 
 /* DAILY */
 .row{
-    display:flex;
-    justify-content:space-between;
+display:flex;
+justify-content:space-between;
+margin:10px 0;
 }
+
+/* EXTRA */
+.grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:10px;
+}
+
+/* GLOBE */
 canvas{
-    position:absolute;
-    top:0;
-    left:0;
+position:absolute;
+top:0;
+left:0;
+z-index:0;
 }
 </style>
 </head>
 
 <body>
 
-<div class="top">
-<input id="search" placeholder="Cari kota..." 
-onkeydown="if(event.key==='Enter')searchCity()">
+<div id="toggle">🌙</div>
+
+<div class="search">
+<input id="search" placeholder="Cari kota..." onkeydown="if(event.key==='Enter')loadWeather()">
 </div>
 
 <div class="header">
-<div id="city"></div>
-<div id="temp" class="big"></div>
-<div id="desc" class="desc"></div>
-
-<div>
-💧 <span id="hum"></span>%  
-🌬️ <span id="wind"></span> km/h
-</div>
+<div id="city">-</div>
+<div id="temp" class="big">--°</div>
+<div id="desc" class="small"></div>
 </div>
 
 <div class="panel">
 
+<div class="card" id="info"></div>
+
 <div class="card">
 <h3>Next 24 Hours</h3>
-<div id="hourly" class="hourly"></div>
+<div class="hourly" id="hourly"></div>
 </div>
 
 <div class="card">
@@ -111,86 +135,108 @@ onkeydown="if(event.key==='Enter')searchCity()">
 <div id="daily"></div>
 </div>
 
+<div class="grid">
+<div class="card" id="rain"></div>
+<div class="card" id="wind"></div>
+<div class="card" id="air"></div>
+<div class="card" id="uv"></div>
+<div class="card" id="hum"></div>
+<div class="card" id="sun"></div>
+</div>
+
 </div>
 
 <script>
 
-// ===== WEATHER CODE → TEXT =====
-function getWeatherDesc(code){
-if(code==0) return "Clear";
-if(code<=3) return "Cloudy";
-if(code<=48) return "Fog";
-if(code<=67) return "Rain";
-if(code<=77) return "Snow";
-return "Storm";
-}
-
 // ===== WEATHER =====
-async function searchCity(){
+async function loadWeather(){
 
-let name=document.getElementById("search").value;
+let geo = await fetch("https://geocoding-api.open-meteo.com/v1/search?name=Jakarta").then(r=>r.json());
+let c = geo.results[0];
 
-let geo=await fetch(
-`https://geocoding-api.open-meteo.com/v1/search?name=${name}`
-).then(r=>r.json());
-
-let c=geo.results[0];
-
-document.getElementById("city").innerText = c.name;
-
-// ===== GET DATA =====
-let w=await fetch(
+let w = await fetch(
 `https://api.open-meteo.com/v1/forecast?latitude=${c.latitude}&longitude=${c.longitude}
 &current=temperature_2m,relative_humidity_2m,wind_speed_10m,weathercode
-&hourly=temperature_2m,weathercode
-&daily=temperature_2m_max,temperature_2m_min,weathercode`
+&hourly=temperature_2m,time
+&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset`
 ).then(r=>r.json());
 
 let cur=w.current;
 
-// ==== CURRENT ====
-document.getElementById("temp").innerText =
-Math.round(cur.temperature_2m)+"°C";
+// HEADER
+city.innerText=c.name;
+temp.innerText=Math.round(cur.temperature_2m)+"°";
+desc.innerText="Cloudy";
 
-document.getElementById("hum").innerText = cur.relative_humidity_2m;
-document.getElementById("wind").innerText = cur.wind_speed_10m;
+// INFO CARD
+info.innerHTML = "Humidity " + cur.relative_humidity_2m + "%, refreshing weather";
 
-document.getElementById("desc").innerText =
-getWeatherDesc(cur.weathercode);
-
-// ==== HOURLY ====
+// HOURLY
 let h="";
-for(let i=0;i<10;i++){
-h+=`
-<div class="hour">
-${i}:00<br>
-${Math.round(w.hourly.temperature_2m[i])}°
-</div>`;
+for(let i=0;i<8;i++){
+let t=new Date(w.hourly.time[i]).getHours();
+h += `<div class="hour">${t}:00<br>${Math.round(w.hourly.temperature_2m[i])}°</div>`;
 }
-document.getElementById("hourly").innerHTML=h;
+hourly.innerHTML=h;
 
-// ==== DAILY ====
+// DAILY
 let d="";
 for(let i=0;i<7;i++){
-d+=`
-<div class="row">
+d += `<div class="row">
 <div>Day ${i+1}</div>
-<div>
-${Math.round(w.daily.temperature_2m_min[i])}° /
-${Math.round(w.daily.temperature_2m_max[i])}°
-</div>
+<div>${Math.round(w.daily.temperature_2m_min[i])}° / ${Math.round(w.daily.temperature_2m_max[i])}°</div>
 </div>`;
 }
-document.getElementById("daily").innerHTML=d;
+daily.innerHTML=d;
+
+// EXTRA
+rain.innerHTML = "0 mm<br>No rain";
+wind.innerHTML = cur.wind_speed_10m + " km/h";
+air.innerHTML = "42 AQI";
+uv.innerHTML = "UV 2";
+hum.innerHTML = cur.relative_humidity_2m + "%";
+sun.innerHTML = "Sunrise " + w.daily.sunrise[0].split("T")[1] +
+"<br>Sunset " + w.daily.sunset[0].split("T")[1];
 
 }
 
-// auto load
-navigator.geolocation.getCurrentPosition(()=>{
-searchCity("Jakarta");
-});
+loadWeather();
+
+// ===== GLOBE =====
+const scene = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,1000);
+cam.position.set(0,1,4);
+
+const ren = new THREE.WebGLRenderer({alpha:true});
+ren.setSize(innerWidth,innerHeight);
+document.body.appendChild(ren.domElement);
+
+const earth = new THREE.Mesh(
+new THREE.SphereGeometry(0.9,128,128),
+new THREE.MeshStandardMaterial({
+map:new THREE.TextureLoader().load("https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg")
+})
+);
+
+scene.add(earth);
+scene.add(new THREE.AmbientLight(0xffffff,1));
+
+function animate(){
+requestAnimationFrame(animate);
+earth.rotation.y += 0.001;
+ren.render(scene,cam);
+}
+animate();
+
+// DARK MODE
+toggle.onclick=()=>{
+document.body.style.background =
+document.body.style.background.includes("#111")
+?"linear-gradient(#6ea6d8,#9fc2e6)"
+:"#111";
+}
 
 </script>
+
 </body>
 </html>
-``
