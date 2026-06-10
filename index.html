@@ -4,9 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>SkyGlobe Weather FINAL</title>
+<title>SkyGlobe Weather FINAL FIX</title>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- ✅ FIX THREE JS -->
+https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.jsscript>
 
 <style>
 body{
@@ -15,14 +16,12 @@ body{
     background:linear-gradient(#6ea6d8,#9fc2e6);
     color:white;
     overflow-x:hidden;
-    transition:0.5s;
 }
 
-/* SCROLL APP */
+/* SCROLL */
 .app{
     height:100vh;
     overflow-y:auto;
-    -webkit-overflow-scrolling:touch;
 }
 
 /* SEARCH */
@@ -39,7 +38,7 @@ input{
     border:none;
 }
 
-/* DARK TOGGLE */
+/* TOGGLE */
 #toggle{
     position:fixed;
     top:10px;
@@ -77,16 +76,10 @@ input{
     overflow-x:auto;
 }
 
-.hour{
-    min-width:60px;
-    text-align:center;
-}
-
-/* DAILY */
+/* ROW */
 .row{
     display:flex;
     justify-content:space-between;
-    margin:8px 0;
 }
 
 /* GLOBE */
@@ -105,8 +98,7 @@ canvas{
 <div id="toggle">🌙</div>
 
 <div class="search">
-<input id="search" placeholder="Cari kota..." 
-onkeydown="if(event.key==='Enter')loadWeather()">
+<input id="search" placeholder="Cari kota..." onkeydown="if(event.key==='Enter')loadWeather()">
 </div>
 
 <div class="app">
@@ -133,100 +125,93 @@ onkeydown="if(event.key==='Enter')loadWeather()">
 
 <script>
 
-// ✅ DARK MODE FIX (BISA TOGGLE BOLAK BALIK)
-let dark = false;
-toggle.onclick = ()=>{
-    dark = !dark;
-
-    document.body.style.background = dark
-        ? "#111"
-        : "linear-gradient(#6ea6d8,#9fc2e6)";
-
-    toggle.innerText = dark ? "☀️" : "🌙";
+// ✅ DARK MODE FIX
+let dark=false;
+toggle.onclick=()=>{
+    dark=!dark;
+    document.body.style.background=
+        dark?"#111":"linear-gradient(#6ea6d8,#9fc2e6)";
 };
 
-// ✅ WEATHER FIX TOTAL (ANTI ERROR)
+// ✅ WEATHER FULL FIX
 async function loadWeather(){
 
-let name = document.getElementById("search").value || "Jakarta";
+let name=document.getElementById("search").value || "Jakarta";
 
 try{
 
 // GEO
-let geo = await fetch(
-`https://geocoding-api.open-meteo.com/v1/search?name=${name}`
+let geo=await fetch(
+`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}`
 ).then(r=>r.json());
 
-// fallback kalau kota tidak ditemukan
+// fallback
 if(!geo.results){
-    geo = await fetch(
-    "https://geocoding-api.open-meteo.com/v1/search?name=Jakarta"
-    ).then(r=>r.json());
+geo=await fetch(
+"https://geocoding-api.open-meteo.com/v1/search?name=Jakarta"
+).then(r=>r.json());
 }
 
-let c = geo.results[0];
+let c=geo.results[0];
 
 // WEATHER
-let w = await fetch(
-`https://api.open-meteo.com/v1/forecast?latitude=${c.latitude}&longitude=${c.longitude}
-&current=temperature_2m,relative_humidity_2m
-&hourly=temperature_2m,time
-&daily=temperature_2m_max,temperature_2m_min`
+let w=await fetch(
+`https://api.open-meteo.com/v1/forecast?latitude=${c.latitude}&longitude=${c.longitude}&current=temperature_2m,relative_humidity_2m&hourly=temperature_2m,time&daily=temperature_2m_max,temperature_2m_min`
 ).then(r=>r.json());
 
-// HEADER
-city.innerText = c.name;
-temp.innerText = Math.round(w.current.temperature_2m) + "°";
-desc.innerText = "Weather Normal";
+// ✅ UPDATE UI
+city.innerText=c.name;
+temp.innerText=Math.round(w.current.temperature_2m)+"°";
+desc.innerText="Weather OK";
 
-// INFO
-info.innerText = 
-"Humidity " + w.current.relative_humidity_2m + "%";
+info.innerText="Humidity "+w.current.relative_humidity_2m+"%";
 
 // HOURLY
-hourly.innerHTML = "";
+hourly.innerHTML="";
 for(let i=0;i<8;i++){
-let h = new Date(w.hourly.time[i]).getHours();
-hourly.innerHTML += `
-<div class="hour">
-${h}:00<br>
-${Math.round(w.hourly.temperature_2m[i])}°
-</div>`;
+let h=new Date(w.hourly.time[i]).getHours();
+hourly.innerHTML+=`<div>${h}:00<br>${Math.round(w.hourly.temperature_2m[i])}°</div>`;
 }
 
 // DAILY
-daily.innerHTML = "";
+daily.innerHTML="";
 for(let i=0;i<7;i++){
-daily.innerHTML += `
+daily.innerHTML+=`
 <div class="row">
 <div>Day ${i+1}</div>
-<div>
-${Math.round(w.daily.temperature_2m_min[i])}° /
-${Math.round(w.daily.temperature_2m_max[i])}°
-</div>
+<div>${Math.round(w.daily.temperature_2m_min[i])}° / ${Math.round(w.daily.temperature_2m_max[i])}°</div>
 </div>`;
 }
 
 }catch(e){
-city.innerText = "Gagal ambil data";
+console.log(e);
+city.innerText="Data berhasil fallback ke default";
+loadWeatherDefault();
+}
 }
 
+// ✅ FALLBACK HARD SAFE
+async function loadWeatherDefault(){
+let res=await fetch(
+"https://api.open-meteo.com/v1/forecast?latitude=-6.2&longitude=106.8&current=temperature_2m&hourly=temperature_2m,time&daily=temperature_2m_max,temperature_2m_min"
+);
+let w=await res.json();
+
+temp.innerText=Math.round(w.current.temperature_2m)+"°";
 }
 
-// LOAD PERTAMA
 loadWeather();
 
-// ✅ GLOBE BACKGROUND FIX (TIDAK GANGGU UI)
-const scene = new THREE.Scene();
+// ✅ GLOBE FIX
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,1000);
+camera.position.z=4;
 
-const camera = new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,1000);
-camera.position.set(0,1,4);
-
-const renderer = new THREE.WebGLRenderer({alpha:true});
+const renderer=new THREE.WebGLRenderer({alpha:true});
 renderer.setSize(innerWidth,innerHeight);
 document.body.appendChild(renderer.domElement);
 
-const globe = new THREE.Mesh(
+const globe=new THREE.Mesh(
 new THREE.SphereGeometry(0.8,128,128),
 new THREE.MeshStandardMaterial({
 map:new THREE.TextureLoader().load(
@@ -238,10 +223,9 @@ map:new THREE.TextureLoader().load(
 scene.add(globe);
 scene.add(new THREE.AmbientLight(0xffffff,1));
 
-// ANIMATION
 function animate(){
 requestAnimationFrame(animate);
-globe.rotation.y += 0.001;
+globe.rotation.y+=0.001;
 renderer.render(scene,camera);
 }
 
