@@ -7,6 +7,7 @@
 <title>SkyGlobe Weather</title>
 
 <link rel="manifest" href="manifest.json">
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <style>
@@ -19,20 +20,21 @@ overflow:hidden;
 }
 
 /* SEARCH */
-.search{
+.top{
 position:absolute;
 top:10px;
 width:100%;
 text-align:center;
 z-index:10;
 }
+
 input{
 padding:10px;
 border-radius:20px;
 border:none;
 }
 
-/* DARK TOGGLE */
+/* TOGGLE */
 #toggle{
 position:absolute;
 top:10px;
@@ -52,8 +54,10 @@ text-align:center;
 z-index:10;
 position:relative;
 }
-.big{ font-size:70px; }
-.small{ opacity:0.8; }
+
+.big{
+font-size:70px;
+}
 
 /* PANEL */
 .panel{
@@ -61,6 +65,7 @@ position:absolute;
 bottom:0;
 width:100%;
 padding:15px;
+z-index:10;
 }
 
 /* CARD */
@@ -78,8 +83,9 @@ display:flex;
 overflow-x:auto;
 gap:15px;
 }
+
 .hour{
-min-width:70px;
+min-width:80px;
 text-align:center;
 }
 
@@ -90,7 +96,7 @@ justify-content:space-between;
 margin:10px 0;
 }
 
-/* EXTRA */
+/* GRID */
 .grid{
 display:grid;
 grid-template-columns:1fr 1fr;
@@ -111,14 +117,14 @@ z-index:0;
 
 <div id="toggle">🌙</div>
 
-<div class="search">
+<div class="top">
 <input id="search" placeholder="Cari kota..." onkeydown="if(event.key==='Enter')loadWeather()">
 </div>
 
 <div class="header">
-<div id="city">-</div>
+<div id="city">Loading...</div>
 <div id="temp" class="big">--°</div>
-<div id="desc" class="small"></div>
+<div id="desc"></div>
 </div>
 
 <div class="panel">
@@ -148,10 +154,23 @@ z-index:0;
 
 <script>
 
-// ===== WEATHER =====
+// ===== WEATHER DESC =====
+function getDesc(code){
+if(code==0) return "Clear";
+if(code<=3) return "Cloudy";
+if(code<=67) return "Rain";
+return "Storm";
+}
+
+// ===== LOAD WEATHER =====
 async function loadWeather(){
 
-let geo = await fetch("https://geocoding-api.open-meteo.com/v1/search?name=Jakarta").then(r=>r.json());
+let cityName=document.getElementById("search").value || "Jakarta";
+
+let geo = await fetch(
+`https://geocoding-api.open-meteo.com/v1/search?name=${cityName}`
+).then(r=>r.json());
+
 let c = geo.results[0];
 
 let w = await fetch(
@@ -164,55 +183,56 @@ let w = await fetch(
 let cur=w.current;
 
 // HEADER
-city.innerText=c.name;
-temp.innerText=Math.round(cur.temperature_2m)+"°";
-desc.innerText="Cloudy";
+document.getElementById("city").innerText=c.name;
+document.getElementById("temp").innerText=Math.round(cur.temperature_2m)+"°";
+document.getElementById("desc").innerText=getDesc(cur.weathercode);
 
-// INFO CARD
-info.innerHTML = "Humidity " + cur.relative_humidity_2m + "%, refreshing weather";
+// INFO
+document.getElementById("info").innerText =
+`Humidity ${cur.relative_humidity_2m}% - Weather feels comfortable today`;
 
 // HOURLY
 let h="";
 for(let i=0;i<8;i++){
-let t=new Date(w.hourly.time[i]).getHours();
-h += `<div class="hour">${t}:00<br>${Math.round(w.hourly.temperature_2m[i])}°</div>`;
+let hour=new Date(w.hourly.time[i]).getHours();
+h+=`<div class="hour">${hour}:00<br>${Math.round(w.hourly.temperature_2m[i])}°</div>`;
 }
-hourly.innerHTML=h;
+document.getElementById("hourly").innerHTML=h;
 
 // DAILY
 let d="";
 for(let i=0;i<7;i++){
-d += `<div class="row">
+d+=`<div class="row">
 <div>Day ${i+1}</div>
 <div>${Math.round(w.daily.temperature_2m_min[i])}° / ${Math.round(w.daily.temperature_2m_max[i])}°</div>
 </div>`;
 }
-daily.innerHTML=d;
+document.getElementById("daily").innerHTML=d;
 
 // EXTRA
-rain.innerHTML = "0 mm<br>No rain";
-wind.innerHTML = cur.wind_speed_10m + " km/h";
-air.innerHTML = "42 AQI";
-uv.innerHTML = "UV 2";
-hum.innerHTML = cur.relative_humidity_2m + "%";
-sun.innerHTML = "Sunrise " + w.daily.sunrise[0].split("T")[1] +
-"<br>Sunset " + w.daily.sunset[0].split("T")[1];
+document.getElementById("rain").innerText="No rain";
+document.getElementById("wind").innerText=cur.wind_speed_10m+" km/h";
+document.getElementById("air").innerText="Air quality good";
+document.getElementById("uv").innerText="UV Low";
+document.getElementById("hum").innerText=cur.relative_humidity_2m+"%";
+document.getElementById("sun").innerHTML=
+"Sunrise "+w.daily.sunrise[0].split("T")[1]+"<br>Sunset "+w.daily.sunset[0].split("T")[1];
 
 }
 
 loadWeather();
 
 // ===== GLOBE =====
-const scene = new THREE.Scene();
-const cam = new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,1000);
-cam.position.set(0,1,4);
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,1000);
+camera.position.set(0,1,4);
 
-const ren = new THREE.WebGLRenderer({alpha:true});
-ren.setSize(innerWidth,innerHeight);
-document.body.appendChild(ren.domElement);
+const renderer=new THREE.WebGLRenderer({alpha:true});
+renderer.setSize(innerWidth,innerHeight);
+document.body.appendChild(renderer.domElement);
 
-const earth = new THREE.Mesh(
-new THREE.SphereGeometry(0.9,128,128),
+const earth=new THREE.Mesh(
+new THREE.SphereGeometry(0.8,128,128),
 new THREE.MeshStandardMaterial({
 map:new THREE.TextureLoader().load("https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg")
 })
@@ -223,18 +243,18 @@ scene.add(new THREE.AmbientLight(0xffffff,1));
 
 function animate(){
 requestAnimationFrame(animate);
-earth.rotation.y += 0.001;
-ren.render(scene,cam);
+earth.rotation.y+=0.001;
+renderer.render(scene,camera);
 }
 animate();
 
-// DARK MODE
-toggle.onclick=()=>{
+// ===== DARK MODE =====
+document.getElementById("toggle").onclick=()=>{
 document.body.style.background =
 document.body.style.background.includes("#111")
 ?"linear-gradient(#6ea6d8,#9fc2e6)"
 :"#111";
-}
+};
 
 </script>
 
