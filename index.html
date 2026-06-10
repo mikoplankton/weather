@@ -4,9 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>SkyGlobe Pro</title>
+<title>SkyGlobe Weather PRO</title>
 
-<!-- FIX LINK -->
 <link rel="manifest" href="manifest.json">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
@@ -19,42 +18,27 @@ body{
     overflow:hidden;
 }
 
-/* TOGGLE */
-#toggle{
-    position:absolute;
-    top:10px;
-    right:10px;
-    background:white;
-    color:black;
-    padding:10px;
-    border-radius:50%;
-    cursor:pointer;
-    z-index:100;
-}
-
 /* SEARCH */
 .top{
     position:absolute;
-    top:15px;
+    top:10px;
     width:100%;
     text-align:center;
-    z-index:20;
 }
 
-input{
-    padding:10px;
-    border-radius:20px;
-    border:none;
-    width:200px;
-}
-
-/* CLOCK */
-.clock{
-    position:absolute;
-    top:70px;
-    width:100%;
+/* HEADER */
+.header{
+    margin-top:60px;
     text-align:center;
-    font-size:45px;
+}
+
+.big{
+    font-size:60px;
+}
+
+.desc{
+    font-size:20px;
+    opacity:0.8;
 }
 
 /* PANEL */
@@ -65,7 +49,7 @@ input{
     padding:20px;
 }
 
-/* GLASS CARD */
+/* CARD */
 .card{
     background:rgba(255,255,255,0.2);
     backdrop-filter:blur(15px);
@@ -78,25 +62,17 @@ input{
 .hourly{
     display:flex;
     overflow-x:auto;
-    gap:15px;
 }
-
 .hour{
+    min-width:60px;
     text-align:center;
 }
 
 /* DAILY */
-.daily{
-    display:flex;
-    flex-direction:column;
-    gap:10px;
-}
-
 .row{
     display:flex;
     justify-content:space-between;
 }
-
 canvas{
     position:absolute;
     top:0;
@@ -107,13 +83,21 @@ canvas{
 
 <body>
 
-<div id="toggle">🌙</div>
-
 <div class="top">
-<input id="search" placeholder="Cari kota..." onkeydown="if(event.key==='Enter')searchCity()">
+<input id="search" placeholder="Cari kota..." 
+onkeydown="if(event.key==='Enter')searchCity()">
 </div>
 
-<div class="clock" id="clock"></div>
+<div class="header">
+<div id="city"></div>
+<div id="temp" class="big"></div>
+<div id="desc" class="desc"></div>
+
+<div>
+💧 <span id="hum"></span>%  
+🌬️ <span id="wind"></span> km/h
+</div>
+</div>
 
 <div class="panel">
 
@@ -124,160 +108,87 @@ canvas{
 
 <div class="card">
 <h3>Next 7 Days</h3>
-<div id="daily" class="daily"></div>
+<div id="daily"></div>
 </div>
 
 </div>
 
 <script>
 
-// CLOCK
-setInterval(()=>{
-let n=new Date();
-document.getElementById("clock").innerText =
-n.getHours()+":"+String(n.getMinutes()).padStart(2,"0");
-},1000);
-
-// ===== THREE NASA =====
-const scene = new THREE.Scene();
-
-const camera = new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,1000);
-camera.position.z = 3;
-
-const renderer = new THREE.WebGLRenderer({alpha:true});
-renderer.setSize(innerWidth, innerHeight);
-document.body.appendChild(renderer.domElement);
-
-// LIGHT
-const sunLight = new THREE.DirectionalLight(0xffffff,1.5);
-sunLight.position.set(5,3,5);
-scene.add(sunLight);
-
-scene.add(new THREE.AmbientLight(0xffffff,0.3));
-
-// TEXTURE
-const loader = new THREE.TextureLoader();
-
-const earthTexture = loader.load(
-"https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg"
-);
-
-const night = loader.load(
-"https://threejs.org/examples/textures/planets/earth_lights_2048.png"
-);
-
-const cloud = loader.load(
-"https://threejs.org/examples/textures/planets/earth_clouds_1024.png"
-);
-
-// EARTH
-const earth = new THREE.Mesh(
-new THREE.SphereGeometry(1.3,128,128),
-new THREE.MeshStandardMaterial({
-    map:earthTexture,
-    emissive:new THREE.Color(0xffffff),
-    emissiveMap:night,
-    emissiveIntensity:0.4
-})
-);
-scene.add(earth);
-
-// CLOUD
-const clouds = new THREE.Mesh(
-new THREE.SphereGeometry(1.32,128,128),
-new THREE.MeshStandardMaterial({
-    map:cloud,
-    transparent:true,
-    opacity:0.5
-})
-);
-scene.add(clouds);
-
-// SATELLITE
-const sat = new THREE.Mesh(
-new THREE.SphereGeometry(0.05),
-new THREE.MeshBasicMaterial({color:0xffcc00})
-);
-scene.add(sat);
-
-let angle=0;
-
-// ANIMATE
-function animate(){
-requestAnimationFrame(animate);
-
-earth.rotation.y+=0.001;
-clouds.rotation.y+=0.0012;
-
-angle+=0.02;
-
-sat.position.set(
-Math.cos(angle)*2,
-Math.sin(angle)*0.5,
-Math.sin(angle)*2
-);
-
-renderer.render(scene,camera);
+// ===== WEATHER CODE → TEXT =====
+function getWeatherDesc(code){
+if(code==0) return "Clear";
+if(code<=3) return "Cloudy";
+if(code<=48) return "Fog";
+if(code<=67) return "Rain";
+if(code<=77) return "Snow";
+return "Storm";
 }
-animate();
 
-// WEATHER
+// ===== WEATHER =====
 async function searchCity(){
 
 let name=document.getElementById("search").value;
 
-let geo = await fetch(
+let geo=await fetch(
 `https://geocoding-api.open-meteo.com/v1/search?name=${name}`
 ).then(r=>r.json());
 
-let c = geo.results[0];
+let c=geo.results[0];
 
-// API
-let w = await fetch(
-`https://api.open-meteo.com/v1/forecast?latitude=${c.latitude}&longitude=${c.longitude}&hourly=temperature_2m&daily=temperature_2m_max,temperature_2m_min`
+document.getElementById("city").innerText = c.name;
+
+// ===== GET DATA =====
+let w=await fetch(
+`https://api.open-meteo.com/v1/forecast?latitude=${c.latitude}&longitude=${c.longitude}
+&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weathercode
+&hourly=temperature_2m,weathercode
+&daily=temperature_2m_max,temperature_2m_min,weathercode`
 ).then(r=>r.json());
 
-// HOURLY
+let cur=w.current;
+
+// ==== CURRENT ====
+document.getElementById("temp").innerText =
+Math.round(cur.temperature_2m)+"°C";
+
+document.getElementById("hum").innerText = cur.relative_humidity_2m;
+document.getElementById("wind").innerText = cur.wind_speed_10m;
+
+document.getElementById("desc").innerText =
+getWeatherDesc(cur.weathercode);
+
+// ==== HOURLY ====
 let h="";
-for(let i=0;i<8;i++){
+for(let i=0;i<10;i++){
 h+=`
 <div class="hour">
-${i}h<br>${Math.round(w.hourly.temperature_2m[i])}°
+${i}:00<br>
+${Math.round(w.hourly.temperature_2m[i])}°
 </div>`;
 }
 document.getElementById("hourly").innerHTML=h;
 
-// DAILY
+// ==== DAILY ====
 let d="";
 for(let i=0;i<7;i++){
 d+=`
 <div class="row">
 <div>Day ${i+1}</div>
-<div>${Math.round(w.daily.temperature_2m_min[i])}° / ${Math.round(w.daily.temperature_2m_max[i])}°</div>
+<div>
+${Math.round(w.daily.temperature_2m_min[i])}° /
+${Math.round(w.daily.temperature_2m_max[i])}°
+</div>
 </div>`;
 }
 document.getElementById("daily").innerHTML=d;
 
 }
 
-// AUTO
+// auto load
 navigator.geolocation.getCurrentPosition(()=>{
 searchCity("Jakarta");
 });
-
-// DARK MODE
-let dark=false;
-document.getElementById("toggle").onclick=()=>{
-dark=!dark;
-
-if(dark){
-document.body.style.background="#111";
-document.getElementById("toggle").innerText="☀️";
-}else{
-document.body.style.background="linear-gradient(#6ea6d8,#9fc2e6)";
-document.getElementById("toggle").innerText="🌙";
-}
-};
 
 </script>
 </body>
