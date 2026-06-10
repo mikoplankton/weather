@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -5,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>SkyGlobe Weather</title>
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#6ea6d8">
+  <meta name="theme-color" content="#0f172a">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <style>
     :root {
@@ -13,55 +14,59 @@
       --bg-bottom: #9fc2e6;
       --text: #ffffff;
       --muted: rgba(255,255,255,0.82);
-      --card: rgba(255,255,255,0.20);
-      --card-border: rgba(255,255,255,0.18);
-      --shadow: 0 10px 30px rgba(0,0,0,0.12);
-      --input-bg: rgba(255,255,255,0.95);
-      --input-text: #334155;
-      --toggle-bg: rgba(255,255,255,0.96);
-      --toggle-text: #111827;
-      --canvas-opacity: 0.24;
+      --card: rgba(255,255,255,0.18);
+      --card-border: rgba(255,255,255,0.14);
+      --shadow: 0 12px 36px rgba(0,0,0,0.12);
+      --input-bg: rgba(255,255,255,0.94);
+      --input-text: #1f2937;
+      --button-bg: rgba(255,255,255,0.94);
+      --button-text: #111827;
+      --globe-opacity: 0.22;
+      --fx-opacity: 0;
     }
 
     body.dark {
-      --bg-top: #0f172a;
-      --bg-bottom: #111827;
+      --bg-top: #06132f;
+      --bg-bottom: #0b1a3f;
       --text: #eef2ff;
-      --muted: rgba(238,242,255,0.86);
-      --card: rgba(18, 25, 46, 0.45);
+      --muted: rgba(238,242,255,0.82);
+      --card: rgba(7, 18, 48, 0.55);
       --card-border: rgba(255,255,255,0.08);
-      --shadow: 0 16px 40px rgba(0,0,0,0.38);
-      --input-bg: rgba(17,24,39,0.92);
-      --input-text: #eef2ff;
-      --toggle-bg: rgba(17,24,39,0.92);
-      --toggle-text: #f8fafc;
-      --canvas-opacity: 0.20;
+      --shadow: 0 18px 42px rgba(0,0,0,0.36);
+      --input-bg: rgba(10, 16, 34, 0.86);
+      --input-text: #f8fafc;
+      --button-bg: rgba(10, 16, 34, 0.86);
+      --button-text: #f8fafc;
+      --globe-opacity: 0.18;
+      --fx-opacity: .45;
     }
 
     * { box-sizing: border-box; }
-    html, body { margin:0; height:100%; }
+    html, body { height: 100%; margin: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Arial, sans-serif;
       color: var(--text);
       background: linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
-      overflow-x: hidden;
       transition: background .35s ease, color .35s ease;
+      overflow-x: hidden;
     }
 
-    #globe-canvas {
+    #globeCanvas, #fxCanvas {
       position: fixed;
       inset: 0;
-      z-index: -1;
-      opacity: var(--canvas-opacity);
+      width: 100%;
+      height: 100%;
       pointer-events: none;
-      transition: opacity .35s ease;
     }
+    #globeCanvas { z-index: -2; opacity: var(--globe-opacity); transition: opacity .35s ease; }
+    #fxCanvas { z-index: -1; opacity: var(--fx-opacity); transition: opacity .35s ease; }
 
     .topbar {
       position: fixed;
       top: max(12px, env(safe-area-inset-top));
-      left: 0; right: 0;
-      z-index: 30;
+      left: 0;
+      right: 0;
+      z-index: 40;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -69,117 +74,119 @@
       padding: 0 14px;
     }
 
-    .search-wrap {
+    .searchWrap {
       display: flex;
       align-items: center;
       gap: 8px;
-      width: min(680px, calc(100% - 78px));
+      width: min(760px, calc(100% - 92px));
     }
 
-    .search-input {
+    .searchInput {
       flex: 1;
-      height: 52px;
-      padding: 0 18px;
+      height: 54px;
+      padding: 0 20px;
       border: 0;
       outline: none;
-      border-radius: 26px;
+      border-radius: 27px;
       background: var(--input-bg);
       color: var(--input-text);
       font-size: 18px;
       box-shadow: var(--shadow);
     }
 
-    .search-btn, .toggle-btn {
-      width: 52px;
-      height: 52px;
+    .searchBtn,
+    .toggleBtn {
+      width: 54px;
+      height: 54px;
       border: 0;
-      cursor: pointer;
       border-radius: 50%;
+      cursor: pointer;
+      background: var(--button-bg);
+      color: var(--button-text);
+      box-shadow: var(--shadow);
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      box-shadow: var(--shadow);
-      transition: transform .18s ease, opacity .18s ease, background .35s ease, color .35s ease;
+      transition: transform .18s ease, background .35s ease, color .35s ease;
+      font-size: 21px;
     }
-    .search-btn:hover, .toggle-btn:hover { transform: translateY(-1px); }
-    .search-btn:active, .toggle-btn:active { transform: translateY(0); }
-    .search-btn { background: var(--toggle-bg); color: var(--toggle-text); }
-    .toggle-btn { background: var(--toggle-bg); color: var(--toggle-text); font-size: 22px; }
+    .searchBtn:hover, .toggleBtn:hover { transform: translateY(-1px); }
+    .searchBtn:active, .toggleBtn:active { transform: translateY(0); }
 
     .app {
-      position: relative;
-      z-index: 10;
       min-height: 100vh;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       padding: 88px 14px 36px;
+      position: relative;
+      z-index: 10;
       scroll-behavior: smooth;
       scroll-snap-type: y proximity;
     }
     .app::-webkit-scrollbar { display: none; }
 
-    .section, .metric-card {
+    .header,
+    .card,
+    .metricCard {
       scroll-snap-align: start;
     }
 
     .header {
       text-align: center;
-      padding-top: 24px;
-      padding-bottom: 10px;
+      padding-top: 18px;
+      padding-bottom: 6px;
+      width: min(860px, 100%);
+      margin: 0 auto;
     }
+
     .clock {
       font-size: 18px;
       font-weight: 600;
       color: var(--muted);
       margin-bottom: 8px;
-      letter-spacing: 0.2px;
     }
     .city {
       font-size: 28px;
-      font-weight: 600;
-      line-height: 1.1;
+      font-weight: 650;
       margin-bottom: 8px;
+      line-height: 1.1;
     }
     .temp {
-      font-size: clamp(72px, 14vw, 108px);
+      font-size: clamp(70px, 14vw, 110px);
       font-weight: 200;
-      line-height: 0.92;
+      line-height: .92;
       letter-spacing: -2px;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
     .desc {
-      font-size: 22px;
-      font-weight: 500;
-      margin-bottom: 6px;
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 4px;
     }
     .range {
       font-size: 16px;
       color: var(--muted);
-      margin-bottom: 12px;
     }
 
-    .section, .metric-card {
+    .card,
+    .metricCard {
+      width: min(860px, 100%);
+      margin: 12px auto;
       background: var(--card);
       border: 1px solid var(--card-border);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
       border-radius: 24px;
       box-shadow: var(--shadow);
     }
 
-    .section {
-      margin: 12px auto;
-      padding: 16px;
-      width: min(860px, 100%);
-    }
-
-    .section-title {
+    .card { padding: 18px; }
+    .cardTitle {
       font-size: 17px;
       font-weight: 700;
       margin-bottom: 12px;
     }
-
-    .summary-text {
+    .summaryText {
       line-height: 1.5;
       color: var(--muted);
       font-size: 16px;
@@ -187,13 +194,13 @@
 
     .hourly {
       display: flex;
-      gap: 12px;
       overflow-x: auto;
+      gap: 12px;
       padding-bottom: 6px;
     }
-    .hourly::-webkit-scrollbar { display:none; }
-    .hour-card {
-      min-width: 78px;
+    .hourly::-webkit-scrollbar { display: none; }
+    .hourItem {
+      min-width: 84px;
       flex: 0 0 auto;
       text-align: center;
       border-radius: 18px;
@@ -201,141 +208,124 @@
       background: rgba(255,255,255,0.10);
       border: 1px solid rgba(255,255,255,0.12);
     }
-    .hour-time { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
-    .hour-icon { font-size: 22px; margin-bottom: 8px; }
-    .hour-temp { font-size: 15px; font-weight: 700; }
+    .hourTime { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+    .hourIcon { font-size: 22px; margin-bottom: 8px; }
+    .hourTemp { font-size: 15px; font-weight: 700; }
+    .hourRain { font-size: 12px; color: var(--muted); margin-top: 4px; }
 
-    .daily-list { display: flex; flex-direction: column; gap: 2px; }
-    .daily-row {
+    .dailyList { display: flex; flex-direction: column; }
+    .dailyRow {
       display: grid;
-      grid-template-columns: 1fr 72px 110px;
+      grid-template-columns: 1fr 90px 122px;
       align-items: center;
       gap: 8px;
-      padding: 11px 2px;
+      padding: 12px 2px;
       border-bottom: 1px solid rgba(255,255,255,0.10);
     }
-    .daily-row:last-child { border-bottom: 0; }
-    .daily-day { font-size: 16px; font-weight: 600; }
-    .daily-cond { font-size: 15px; color: var(--muted); text-align: center; }
-    .daily-range { font-size: 15px; text-align: right; font-weight: 700; }
+    .dailyRow:last-child { border-bottom: none; }
+    .dailyDay { font-size: 16px; font-weight: 600; }
+    .dailyCond { font-size: 15px; color: var(--muted); text-align: center; }
+    .dailyRange { font-size: 16px; font-weight: 700; text-align: right; }
 
-    .grid {
+    .metricsGrid {
       width: min(860px, 100%);
       margin: 12px auto 0;
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 12px;
     }
-    .metric-card {
+    .metricCard {
+      margin: 0;
       padding: 16px;
       min-height: 108px;
     }
-    .metric-label {
+    .metricLabel {
       font-size: 13px;
-      letter-spacing: 0.4px;
+      letter-spacing: .4px;
       text-transform: uppercase;
       color: var(--muted);
       margin-bottom: 10px;
     }
-    .metric-value {
+    .metricValue {
       font-size: 24px;
-      font-weight: 700;
+      font-weight: 800;
       margin-bottom: 6px;
     }
-    .metric-sub { color: var(--muted); font-size: 14px; line-height: 1.35; }
+    .metricSub {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
 
     .status {
       width: min(860px, 100%);
-      margin: 10px auto 0;
+      margin: 14px auto 0;
       text-align: center;
-      color: var(--muted);
       font-size: 14px;
+      color: var(--muted);
       min-height: 20px;
     }
 
-    @media (max-width: 520px) {
+    @media (max-width: 560px) {
       .city { font-size: 24px; }
       .desc { font-size: 18px; }
-      .daily-row { grid-template-columns: 1fr 64px 94px; }
-      .grid { grid-template-columns: 1fr; }
-      .metric-card { min-height: 96px; }
-      .search-input { font-size: 17px; }
+      .dailyRow { grid-template-columns: 1fr 86px 96px; }
+      .metricsGrid { grid-template-columns: 1fr; }
+      .metricCard { min-height: 96px; }
+      .searchInput { font-size: 17px; }
     }
   </style>
 </head>
-<body>
-  <canvas id="globe-canvas"></canvas>
+<body class="dark">
+  <canvas id="globeCanvas"></canvas>
+  <canvas id="fxCanvas"></canvas>
 
   <div class="topbar">
-    <div class="search-wrap">
-      <input id="searchInput" class="search-input" type="text" placeholder="Cari kota..." value="Jakarta" aria-label="Cari kota">
-      <button id="searchBtn" class="search-btn" aria-label="Cari">🔍</button>
+    <div class="searchWrap">
+      <input id="searchInput" class="searchInput" type="text" placeholder="Cari kota..." value="Jakarta" aria-label="Cari kota">
+      <button id="searchBtn" class="searchBtn" aria-label="Cari">🔎</button>
     </div>
-    <button id="toggleBtn" class="toggle-btn" aria-label="Light dark mode">🌙</button>
+    <button id="toggleBtn" class="toggleBtn" aria-label="Ganti tema">☀️</button>
   </div>
 
-  <main class="app" id="app">
+  <main id="app" class="app">
     <section class="header">
       <div id="clockEl" class="clock">--:-- • ----</div>
-      <div id="cityEl" class="city">Jakarta</div>
+      <div id="cityEl" class="city">Jakarta, ID</div>
       <div id="tempEl" class="temp">--°</div>
       <div id="descEl" class="desc">Memuat cuaca…</div>
       <div id="rangeEl" class="range">H: --° • L: --°</div>
     </section>
 
-    <section class="section">
-      <div class="section-title">Today</div>
-      <div id="summaryEl" class="summary-text">Memuat ringkasan cuaca…</div>
+    <section class="card">
+      <div class="cardTitle">Today</div>
+      <div id="summaryEl" class="summaryText">Memuat ringkasan cuaca…</div>
     </section>
 
-    <section class="section">
-      <div class="section-title">Next 24 Hours</div>
+    <section class="card">
+      <div class="cardTitle">Next 24 Hours</div>
       <div id="hourlyEl" class="hourly"></div>
     </section>
 
-    <section class="section">
-      <div class="section-title">Next 7 Days</div>
-      <div id="dailyEl" class="daily-list"></div>
+    <section class="card">
+      <div class="cardTitle">Next 7 Days</div>
+      <div id="dailyEl" class="dailyList"></div>
     </section>
 
-    <section class="grid">
-      <div class="metric-card">
-        <div class="metric-label">Feels Like</div>
-        <div id="feelsEl" class="metric-value">--°</div>
-        <div class="metric-sub">Perkiraan suhu yang terasa di kulit.</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Humidity</div>
-        <div id="humidityEl" class="metric-value">--%</div>
-        <div class="metric-sub">Kelembapan udara saat ini.</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Wind</div>
-        <div id="windEl" class="metric-value">-- km/h</div>
-        <div class="metric-sub">Kecepatan angin 10 meter.</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Precipitation</div>
-        <div id="precipEl" class="metric-value">-- mm</div>
-        <div class="metric-sub">Curah hujan jam ini.</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Sunrise</div>
-        <div id="sunriseEl" class="metric-value">--:--</div>
-        <div class="metric-sub">Matahari terbit lokal.</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Sunset</div>
-        <div id="sunsetEl" class="metric-value">--:--</div>
-        <div class="metric-sub">Matahari terbenam lokal.</div>
-      </div>
+    <section class="metricsGrid">
+      <div class="metricCard"><div class="metricLabel">Feels Like</div><div id="feelsEl" class="metricValue">--°</div><div class="metricSub">Perkiraan suhu yang terasa di kulit.</div></div>
+      <div class="metricCard"><div class="metricLabel">Humidity</div><div id="humidityEl" class="metricValue">--%</div><div class="metricSub">Kelembapan udara saat ini.</div></div>
+      <div class="metricCard"><div class="metricLabel">Wind</div><div id="windEl" class="metricValue">-- km/h</div><div class="metricSub">Kecepatan angin 10 meter.</div></div>
+      <div class="metricCard"><div class="metricLabel">Precipitation</div><div id="precipEl" class="metricValue">-- mm</div><div class="metricSub">Curah hujan jam ini.</div></div>
+      <div class="metricCard"><div class="metricLabel">Sunrise</div><div id="sunriseEl" class="metricValue">--:--</div><div class="metricSub">Matahari terbit lokal.</div></div>
+      <div class="metricCard"><div class="metricLabel">Sunset</div><div id="sunsetEl" class="metricValue">--:--</div><div class="metricSub">Matahari terbenam lokal.</div></div>
     </section>
 
     <div id="statusEl" class="status"></div>
   </main>
 
   <script>
-    // --------- DOM ---------
+    // DOM
     const appEl = document.getElementById('app');
     const searchInput = document.getElementById('searchInput');
     const searchBtn = document.getElementById('searchBtn');
@@ -356,93 +346,49 @@
     const sunsetEl = document.getElementById('sunsetEl');
     const statusEl = document.getElementById('statusEl');
 
-    // --------- Theme ---------
-    let darkMode = false;
+    // Theme
+    let darkMode = true;
     toggleBtn.addEventListener('click', () => {
       darkMode = !darkMode;
       document.body.classList.toggle('dark', darkMode);
       toggleBtn.textContent = darkMode ? '☀️' : '🌙';
+      updateThemeForWeather(latestCode);
     });
 
-    // --------- Weather utils ---------
+    // Weather mapping
     const WEATHER_MAP = {
-      0: ['Clear', '☀️'],
-      1: ['Mainly clear', '🌤️'],
-      2: ['Partly cloudy', '⛅'],
-      3: ['Cloudy', '☁️'],
-      45: ['Fog', '🌫️'],
-      48: ['Depositing rime fog', '🌫️'],
-      51: ['Light drizzle', '🌦️'],
-      53: ['Drizzle', '🌦️'],
-      55: ['Dense drizzle', '🌧️'],
-      56: ['Freezing drizzle', '🌨️'],
-      57: ['Freezing drizzle', '🌨️'],
-      61: ['Light rain', '🌦️'],
-      63: ['Rain', '🌧️'],
-      65: ['Heavy rain', '🌧️'],
-      66: ['Freezing rain', '🌨️'],
-      67: ['Freezing rain', '🌨️'],
-      71: ['Light snow', '🌨️'],
-      73: ['Snow', '❄️'],
-      75: ['Heavy snow', '❄️'],
-      77: ['Snow grains', '❄️'],
-      80: ['Rain showers', '🌦️'],
-      81: ['Rain showers', '🌧️'],
-      82: ['Heavy showers', '⛈️'],
-      85: ['Snow showers', '🌨️'],
-      86: ['Snow showers', '🌨️'],
-      95: ['Thunderstorm', '⛈️'],
-      96: ['Thunderstorm hail', '⛈️'],
-      99: ['Thunderstorm hail', '⛈️']
+      0: ['Clear', '☀️'], 1: ['Mainly clear', '🌤️'], 2: ['Partly cloudy', '⛅'], 3: ['Cloudy', '☁️'],
+      45: ['Fog', '🌫️'], 48: ['Fog', '🌫️'],
+      51: ['Light drizzle', '🌦️'], 53: ['Drizzle', '🌦️'], 55: ['Dense drizzle', '🌧️'],
+      61: ['Light rain', '🌦️'], 63: ['Rain', '🌧️'], 65: ['Heavy rain', '🌧️'],
+      71: ['Light snow', '🌨️'], 73: ['Snow', '❄️'], 75: ['Heavy snow', '❄️'],
+      80: ['Rain showers', '🌦️'], 81: ['Rain showers', '🌧️'], 82: ['Heavy showers', '⛈️'],
+      95: ['Thunderstorm', '⛈️'], 96: ['Thunderstorm hail', '⛈️'], 99: ['Thunderstorm hail', '⛈️']
     };
+    const weatherLabel = (code) => WEATHER_MAP[code]?.[0] || 'Unknown';
+    const weatherIcon = (code) => WEATHER_MAP[code]?.[1] || '🌡️';
+    const hh = (iso) => `${String(new Date(iso).getHours()).padStart(2,'0')}:00`;
+    const hm = (iso) => `${String(new Date(iso).getHours()).padStart(2,'0')}:${String(new Date(iso).getMinutes()).padStart(2,'0')}`;
+    const dayLabel = (iso, i) => i === 0 ? 'Today' : new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date(iso));
 
-    function weatherLabel(code) {
-      return WEATHER_MAP[code]?.[0] || 'Unknown';
-    }
-    function weatherIcon(code) {
-      return WEATHER_MAP[code]?.[1] || '🌡️';
-    }
-    function shortTime(isoString) {
-      const d = new Date(isoString);
-      const h = String(d.getHours()).padStart(2, '0');
-      return `${h}:00`;
-    }
-    function hhmm(isoString) {
-      const d = new Date(isoString);
-      return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-    }
-    function weekdayLabel(isoString, index) {
-      const d = new Date(isoString);
-      if (index === 0) return 'Today';
-      return new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(d);
-    }
-    function summaryText(curr) {
-      const p1 = `Saat ini ${weatherLabel(curr.weather_code).toLowerCase()} dengan suhu ${Math.round(curr.temperature_2m)}°C.`;
-      const p2 = `Kelembapan ${Math.round(curr.relative_humidity_2m)}% dan angin ${Math.round(curr.wind_speed_10m)} km/h.`;
-      const p3 = `Terasa seperti ${Math.round(curr.apparent_temperature)}°C.`;
-      return `${p1} ${p2} ${p3}`;
+    function buildSummary(curr) {
+      return `Saat ini ${weatherLabel(curr.weather_code).toLowerCase()} dengan suhu ${Math.round(curr.temperature_2m)}°C. ` +
+             `Kelembapan ${Math.round(curr.relative_humidity_2m)}% dan angin ${Math.round(curr.wind_speed_10m)} km/h. ` +
+             `Terasa seperti ${Math.round(curr.apparent_temperature)}°C.`;
     }
 
-    // --------- Clock ---------
-    let currentTimeZone = 'Asia/Jakarta';
+    // Clock
+    let tz = 'Asia/Jakarta';
     let clockTimer = null;
     function startClock() {
       if (clockTimer) clearInterval(clockTimer);
       const tick = () => {
         try {
           const now = new Date();
-          const time = new Intl.DateTimeFormat('en-GB', {
-            timeZone: currentTimeZone,
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-          }).format(now);
-          const day = new Intl.DateTimeFormat('en-US', {
-            timeZone: currentTimeZone,
-            weekday: 'long'
-          }).format(now);
+          const time = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
+          const day = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long' }).format(now);
           clockEl.textContent = `${time} • ${day}`;
-        } catch (e) {
+        } catch {
           clockEl.textContent = '--:-- • ----';
         }
       };
@@ -450,85 +396,250 @@
       clockTimer = setInterval(tick, 1000);
     }
 
-    // --------- Globe ---------
-    const canvasEl = document.getElementById('globe-canvas');
+    // Globe background
+    const globeCanvas = document.getElementById('globeCanvas');
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 0.15, 4.3);
-
-    const renderer = new THREE.WebGLRenderer({ canvas: canvasEl, antialias: true, alpha: true });
+    camera.position.set(0, 0.12, 4.6);
+    const renderer = new THREE.WebGLRenderer({ canvas: globeCanvas, antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setClearColor(0x000000, 0);
 
-    const ambient = new THREE.AmbientLight(0xffffff, 1.0);
-    scene.add(ambient);
-    const directional = new THREE.DirectionalLight(0xffffff, 0.85);
-    directional.position.set(5, 3, 5);
-    scene.add(directional);
+    scene.add(new THREE.AmbientLight(0xffffff, 1));
+    const dl = new THREE.DirectionalLight(0xffffff, 0.8);
+    dl.position.set(5, 3, 5);
+    scene.add(dl);
 
-    const textureLoader = new THREE.TextureLoader();
+    const loader = new THREE.TextureLoader();
     const globeGroup = new THREE.Group();
     scene.add(globeGroup);
 
     const earth = new THREE.Mesh(
-      new THREE.SphereGeometry(0.95, 96, 96),
+      new THREE.SphereGeometry(0.88, 96, 96),
       new THREE.MeshStandardMaterial({
-        map: textureLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg'),
-        roughness: 1,
-        metalness: 0,
+        map: loader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg'),
         transparent: true,
-        opacity: 0.95
+        opacity: 0.92,
+        roughness: 1
       })
     );
     globeGroup.add(earth);
 
     const clouds = new THREE.Mesh(
-      new THREE.SphereGeometry(0.975, 96, 96),
+      new THREE.SphereGeometry(0.905, 96, 96),
       new THREE.MeshStandardMaterial({
-        map: textureLoader.load('https://threejs.org/examples/textures/planets/earth_clouds_1024.png'),
+        map: loader.load('https://threejs.org/examples/textures/planets/earth_clouds_1024.png'),
         transparent: true,
-        opacity: 0.35,
+        opacity: 0.28,
         depthWrite: false
       })
     );
     globeGroup.add(clouds);
 
     const glow = new THREE.Mesh(
-      new THREE.SphereGeometry(1.05, 64, 64),
-      new THREE.MeshBasicMaterial({ color: 0x9fd7ff, transparent: true, opacity: 0.06 })
+      new THREE.SphereGeometry(0.98, 64, 64),
+      new THREE.MeshBasicMaterial({ color: 0x98d8ff, transparent: true, opacity: 0.05 })
     );
     globeGroup.add(glow);
 
-    let targetRotationY = 0;
-    function animate() {
-      requestAnimationFrame(animate);
-      globeGroup.rotation.y += 0.0008;
-      globeGroup.rotation.y += (targetRotationY - globeGroup.rotation.y) * 0.02;
-      clouds.rotation.y += 0.0006;
+    let globeTargetRot = 0;
+    function animateGlobe() {
+      requestAnimationFrame(animateGlobe);
+      globeGroup.rotation.y += 0.0007;
+      globeGroup.rotation.y += (globeTargetRot - globeGroup.rotation.y) * 0.02;
+      clouds.rotation.y += 0.00045;
       renderer.render(scene, camera);
     }
-    animate();
+    animateGlobe();
 
-    function handleResize() {
+    window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
-    }
-    window.addEventListener('resize', handleResize);
-
-    appEl.addEventListener('scroll', () => {
-      const y = appEl.scrollTop;
-      camera.position.y = 0.15 - Math.min(y * 0.00045, 0.22);
-      canvasEl.style.opacity = darkMode ? '0.20' : '0.24';
+      fxCanvas.width = window.innerWidth;
+      fxCanvas.height = window.innerHeight;
+      initRain();
     });
 
-    // --------- Weather engine ---------
-    let latestWeather = null;
+    // FX rain
+    const fxCanvas = document.getElementById('fxCanvas');
+    const fxCtx = fxCanvas.getContext('2d');
+    fxCanvas.width = window.innerWidth;
+    fxCanvas.height = window.innerHeight;
+    let rainDrops = [];
+    let rainActive = false;
+    function initRain() {
+      rainDrops = Array.from({ length: 120 }, () => ({
+        x: Math.random() * fxCanvas.width,
+        y: Math.random() * fxCanvas.height,
+        l: 10 + Math.random() * 14,
+        s: 4 + Math.random() * 4
+      }));
+    }
+    initRain();
+    function animateFx() {
+      requestAnimationFrame(animateFx);
+      fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+      if (!rainActive) return;
+      fxCtx.strokeStyle = darkMode ? 'rgba(180,210,255,.35)' : 'rgba(255,255,255,.28)';
+      fxCtx.lineWidth = 1;
+      for (const d of rainDrops) {
+        fxCtx.beginPath();
+        fxCtx.moveTo(d.x, d.y);
+        fxCtx.lineTo(d.x - 3, d.y + d.l);
+        fxCtx.stroke();
+        d.y += d.s;
+        if (d.y > fxCanvas.height) {
+          d.y = -20;
+          d.x = Math.random() * fxCanvas.width;
+        }
+      }
+    }
+    animateFx();
+
+    // Ambient audio (generated, no external file)
+    let audioCtx = null;
+    let masterGain = null;
+    let windGain = null;
+    let rainGain = null;
+    let thunderTimer = null;
+    let latestCode = 0;
+
+    function createNoiseBuffer(ctx, seconds = 2) {
+      const buffer = ctx.createBuffer(1, seconds * ctx.sampleRate, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < data.length; i++) {
+        const white = Math.random() * 2 - 1;
+        last = (last + (0.02 * white)) / 1.02;
+        data[i] = last * 3.5;
+      }
+      return buffer;
+    }
+
+    function ensureAudio() {
+      if (audioCtx) return;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = 0.12;
+      masterGain.connect(audioCtx.destination);
+
+      const noise = createNoiseBuffer(audioCtx, 2);
+
+      // wind layer
+      const windSrc = audioCtx.createBufferSource();
+      windSrc.buffer = noise;
+      windSrc.loop = true;
+      const windFilter = audioCtx.createBiquadFilter();
+      windFilter.type = 'lowpass';
+      windFilter.frequency.value = 500;
+      windGain = audioCtx.createGain();
+      windGain.gain.value = 0;
+      windSrc.connect(windFilter).connect(windGain).connect(masterGain);
+      windSrc.start();
+
+      // rain layer
+      const rainSrc = audioCtx.createBufferSource();
+      rainSrc.buffer = noise;
+      rainSrc.loop = true;
+      const rainFilter = audioCtx.createBiquadFilter();
+      rainFilter.type = 'highpass';
+      rainFilter.frequency.value = 1800;
+      rainGain = audioCtx.createGain();
+      rainGain.gain.value = 0;
+      rainSrc.connect(rainFilter).connect(rainGain).connect(masterGain);
+      rainSrc.start();
+    }
+
+    function playThunder() {
+      if (!audioCtx) return;
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const filter = audioCtx.createBiquadFilter();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(70, now);
+      osc.frequency.exponentialRampToValueAtTime(28, now + 1.2);
+      filter.type = 'lowpass';
+      filter.frequency.value = 280;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.08, now + 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.4);
+      osc.connect(filter).connect(gain).connect(masterGain);
+      osc.start(now);
+      osc.stop(now + 1.5);
+    }
+
+    function scheduleThunder(active) {
+      if (thunderTimer) {
+        clearTimeout(thunderTimer);
+        thunderTimer = null;
+      }
+      if (!active) return;
+      const schedule = () => {
+        thunderTimer = setTimeout(() => {
+          playThunder();
+          schedule();
+        }, 6000 + Math.random() * 9000);
+      };
+      schedule();
+    }
+
+    function setAmbientByWeather(code, windSpeed) {
+      latestCode = code;
+      ensureAudio();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const now = audioCtx.currentTime;
+      const rainy = [51,53,55,61,63,65,80,81,82].includes(code);
+      const stormy = [95,96,99].includes(code);
+      const windyBase = Math.min(0.06, Math.max(0.01, (windSpeed || 0) / 220));
+      windGain.gain.cancelScheduledValues(now);
+      rainGain.gain.cancelScheduledValues(now);
+      windGain.gain.linearRampToValueAtTime(windyBase + (stormy ? 0.02 : 0), now + 0.6);
+      rainGain.gain.linearRampToValueAtTime((rainy || stormy) ? (stormy ? 0.10 : 0.06) : 0.0, now + 0.6);
+      rainActive = rainy || stormy;
+      scheduleThunder(stormy);
+    }
+
+    function updateThemeForWeather(code) {
+      const clearish = [0,1].includes(code);
+      const cloudy = [2,3,45,48].includes(code);
+      const rainy = [51,53,55,61,63,65,80,81,82].includes(code);
+      const stormy = [95,96,99].includes(code);
+
+      if (!darkMode) {
+        if (stormy) {
+          document.documentElement.style.setProperty('--bg-top', '#4a77b8');
+          document.documentElement.style.setProperty('--bg-bottom', '#7fb1df');
+        } else if (rainy) {
+          document.documentElement.style.setProperty('--bg-top', '#5b8fc4');
+          document.documentElement.style.setProperty('--bg-bottom', '#8dbbe5');
+        } else if (cloudy) {
+          document.documentElement.style.setProperty('--bg-top', '#7aa1c7');
+          document.documentElement.style.setProperty('--bg-bottom', '#b7d1ea');
+        } else if (clearish) {
+          document.documentElement.style.setProperty('--bg-top', '#4facfe');
+          document.documentElement.style.setProperty('--bg-bottom', '#bfe7ff');
+        }
+      }
+    }
+
+    // Search + render
     async function fetchJson(url) {
       const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
       return res.json();
+    }
+
+    async function pickPlace(query) {
+      const geo = await fetchJson(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=10&language=en&format=json`);
+      if (!geo.results || !geo.results.length) throw new Error('Kota tidak ditemukan');
+      const q = query.trim().toLowerCase();
+      const exactID = geo.results.find(r => r.country_code === 'ID' && r.name.toLowerCase() === q);
+      const startsID = geo.results.find(r => r.country_code === 'ID' && r.name.toLowerCase().startsWith(q));
+      const anyID = geo.results.find(r => r.country_code === 'ID');
+      return exactID || startsID || anyID || geo.results[0];
     }
 
     async function searchCity(query) {
@@ -536,57 +647,33 @@
       statusEl.textContent = 'Memuat data cuaca…';
       searchBtn.disabled = true;
       searchBtn.style.opacity = '.6';
-
       try {
-        const geo = await fetchJson(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=en&format=json`);
-        if (!geo.results || geo.results.length === 0) {
-          throw new Error('Kota tidak ditemukan');
-        }
-        const place = geo.results[0];
-
+        const place = await pickPlace(q);
         const weather = await fetchJson(
           `https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}&longitude=${place.longitude}` +
           `&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,precipitation,weather_code` +
-          `&hourly=temperature_2m,weather_code` +
+          `&hourly=temperature_2m,weather_code,precipitation_probability` +
           `&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset` +
           `&forecast_days=8&timezone=auto`
         );
 
-        if (!weather.current || !weather.hourly || !weather.daily) {
-          throw new Error('Data cuaca tidak lengkap');
-        }
-
-        latestWeather = { place, weather };
-        currentTimeZone = weather.timezone || place.timezone || 'Asia/Jakarta';
+        tz = weather.timezone || place.timezone || 'Asia/Jakarta';
         renderWeather(place, weather);
         startClock();
-        targetRotationY = -place.longitude * Math.PI / 180;
+        globeTargetRot = -place.longitude * Math.PI / 180;
+        updateThemeForWeather(weather.current.weather_code);
+        setAmbientByWeather(weather.current.weather_code, weather.current.wind_speed_10m);
         statusEl.textContent = `Data aktif • ${place.name}`;
       } catch (err) {
         console.error(err);
-        statusEl.textContent = 'Gagal mengambil data. Menampilkan Jakarta default jika tersedia.';
-        // hard fallback to Jakarta
-        if ((query || searchInput.value || '').trim().toLowerCase() !== 'jakarta') {
+        statusEl.textContent = 'Gagal memuat data. Kembali ke Jakarta.';
+        if (q.toLowerCase() !== 'jakarta') {
           searchInput.value = 'Jakarta';
           try {
             await searchCity('Jakarta');
             return;
           } catch (_) {}
         }
-        // static emergency fallback so UI tetap hidup
-        cityEl.textContent = 'Jakarta';
-        tempEl.textContent = '30°';
-        descEl.textContent = 'Fallback Mode';
-        rangeEl.textContent = 'H: 32° • L: 25°';
-        summaryEl.textContent = 'Tidak bisa memuat API saat ini. Coba refresh atau cari kota besar lain.';
-        feelsEl.textContent = '31°';
-        humidityEl.textContent = '75%';
-        windEl.textContent = '8 km/h';
-        precipEl.textContent = '0 mm';
-        sunriseEl.textContent = '05:50';
-        sunsetEl.textContent = '17:47';
-        hourlyEl.innerHTML = ['Now','09:00','10:00','11:00','12:00','13:00'].map((t,i)=>`<div class="hour-card"><div class="hour-time">${t}</div><div class="hour-icon">☁️</div><div class="hour-temp">${30+i%2}°</div></div>`).join('');
-        dailyEl.innerHTML = ['Today','Thursday','Friday','Saturday','Sunday','Monday','Tuesday'].map((d,i)=>`<div class="daily-row"><div class="daily-day">${d}</div><div class="daily-cond">☁️ Cloudy</div><div class="daily-range">${24+i%2}° / ${31-i%2}°</div></div>`).join('');
       } finally {
         searchBtn.disabled = false;
         searchBtn.style.opacity = '1';
@@ -595,41 +682,58 @@
 
     function renderWeather(place, weather) {
       const curr = weather.current;
-      cityEl.textContent = `${place.name}${place.country_code ? ', ' + place.country_code : ''}`;
+      cityEl.textContent = `${place.name}, ${place.country_code || ''}`.replace(/,\s*$/, '');
       tempEl.textContent = `${Math.round(curr.temperature_2m)}°`;
       descEl.textContent = `${weatherIcon(curr.weather_code)} ${weatherLabel(curr.weather_code)}`;
       rangeEl.textContent = `H: ${Math.round(weather.daily.temperature_2m_max[0])}° • L: ${Math.round(weather.daily.temperature_2m_min[0])}°`;
-      summaryEl.textContent = summaryText(curr);
+      summaryEl.textContent = buildSummary(curr);
 
       feelsEl.textContent = `${Math.round(curr.apparent_temperature)}°`;
       humidityEl.textContent = `${Math.round(curr.relative_humidity_2m)}%`;
       windEl.textContent = `${Math.round(curr.wind_speed_10m)} km/h`;
       precipEl.textContent = `${Number(curr.precipitation || 0).toFixed(1)} mm`;
-      sunriseEl.textContent = hhmm(weather.daily.sunrise[0]);
-      sunsetEl.textContent = hhmm(weather.daily.sunset[0]);
+      sunriseEl.textContent = hm(weather.daily.sunrise[0]);
+      sunsetEl.textContent = hm(weather.daily.sunset[0]);
 
       hourlyEl.innerHTML = weather.hourly.time.slice(0, 12).map((time, i) => {
-        const timeLabel = i === 0 ? 'Now' : shortTime(time);
         const temp = Math.round(weather.hourly.temperature_2m[i]);
         const code = weather.hourly.weather_code[i];
-        return `<div class="hour-card"><div class="hour-time">${timeLabel}</div><div class="hour-icon">${weatherIcon(code)}</div><div class="hour-temp">${temp}°</div></div>`;
+        const pop = weather.hourly.precipitation_probability?.[i];
+        return `
+          <div class="hourItem">
+            <div class="hourTime">${i === 0 ? 'Now' : hh(time)}</div>
+            <div class="hourIcon">${weatherIcon(code)}</div>
+            <div class="hourTemp">${temp}°</div>
+            <div class="hourRain">${typeof pop === 'number' ? pop + '%' : ''}</div>
+          </div>`;
       }).join('');
 
       dailyEl.innerHTML = weather.daily.time.slice(0, 7).map((time, i) => {
         const code = weather.daily.weather_code[i];
         const min = Math.round(weather.daily.temperature_2m_min[i]);
         const max = Math.round(weather.daily.temperature_2m_max[i]);
-        return `<div class="daily-row"><div class="daily-day">${weekdayLabel(time, i)}</div><div class="daily-cond">${weatherIcon(code)} ${weatherLabel(code)}</div><div class="daily-range">${min}° / ${max}°</div></div>`;
+        return `
+          <div class="dailyRow">
+            <div class="dailyDay">${dayLabel(time, i)}</div>
+            <div class="dailyCond">${weatherIcon(code)} ${weatherLabel(code)}</div>
+            <div class="dailyRange">${min}° / ${max}°</div>
+          </div>`;
       }).join('');
     }
 
-    // Events
+    // unlock audio on first user interaction
+    ['click','touchstart','keydown'].forEach(evt => {
+      window.addEventListener(evt, () => {
+        ensureAudio();
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+      }, { once: true });
+    });
+
     searchBtn.addEventListener('click', () => searchCity());
     searchInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') searchCity();
     });
 
-    // Init
     startClock();
     searchCity('Jakarta');
   </script>
